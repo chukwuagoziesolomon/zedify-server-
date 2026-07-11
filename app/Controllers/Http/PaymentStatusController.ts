@@ -3,7 +3,6 @@ import Logger from '@ioc:Adonis/Core/Logger'
 import PaymentIntent from 'App/Models/PaymentIntent'
 import Wallet from 'App/Models/Wallet'
 import Currency from 'App/Models/Currency'
-import CryptoNetwork from 'App/Models/CryptoNetwork'
 import { PaymentIntentStatus } from 'App/Lib/types'
 import CurrencyController from './CurrencyController'
 
