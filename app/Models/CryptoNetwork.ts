@@ -23,6 +23,9 @@ export default class CryptoNetwork extends BaseModel {
   @column()
   public isTestnet: boolean
 
+  @column()
+  public chainKey: string
+
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime
 

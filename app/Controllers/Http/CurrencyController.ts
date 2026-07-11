@@ -178,5 +178,24 @@ export default class CurrencyController {
     }
   }
 
+  public static async calculateCryptoEquivalent(params: { fiatCurrencyId: string, fiatAmount: number, cryptoCurrencyId: string }): Promise<number> {
+    const { fiatCurrencyId, fiatAmount, cryptoCurrencyId } = params
+    // Fetch fiat currency
+    const fiatCurrency = await Currency.query().where('unique_id', fiatCurrencyId).first()
+    if (!fiatCurrency || !fiatCurrency.ratePerUsd) {
+      throw new Error('Invalid or missing fiat currency or rate')
+    }
+    // Fetch crypto currency
+    const cryptoCurrency = await Currency.query().where('unique_id', cryptoCurrencyId).first()
+    if (!cryptoCurrency || !cryptoCurrency.ratePerUsd) {
+      throw new Error('Invalid or missing crypto currency or rate')
+    }
+    // Convert fiat amount to USD
+    const amountInUsd = fiatAmount * fiatCurrency.ratePerUsd
+    // Convert USD to crypto
+    const amountInCrypto = amountInUsd / cryptoCurrency.ratePerUsd
+    return amountInCrypto
+  }
+
 
 }

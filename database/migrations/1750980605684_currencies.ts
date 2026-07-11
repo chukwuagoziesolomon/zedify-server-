@@ -10,10 +10,12 @@ export default class extends BaseSchema {
       table.string('name', 255).notNullable()
       table.string('symbol', 10).notNullable()
       table.string('logo', 500).nullable()
-      table.integer('crypto_network_id').unsigned().references('id').inTable('crypto_networks').onDelete('CASCADE').nullable()
-      table.enum('type', ['fiat', 'crypto']).notNullable()
+      table.string('crypto_network_id').unsigned().references('unique_id').inTable('crypto_networks').onDelete('CASCADE').nullable()
+      table.string('type').notNullable()
       table.decimal('rate_per_usd', 20, 8).notNullable().defaultTo(0)
       table.string('contract_address', 255).nullable()
+      table.boolean('is_blocked').notNullable().defaultTo(false)
+      table.boolean('is_deleted').notNullable().defaultTo(false)
 
       /**
        * Uses timestamptz for PostgreSQL and DATETIME2 for MSSQL

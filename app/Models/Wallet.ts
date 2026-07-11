@@ -1,9 +1,9 @@
 import { DateTime } from 'luxon'
 import { BaseModel, column } from '@ioc:Adonis/Lucid/Orm'
-import { PayoutType } from 'App/Lib/types'
+import { WalletType } from 'App/Lib/types'
 import { genRandomUuid } from 'App/helpers/utils'
 
-export default class PayoutDetail extends BaseModel {
+export default class Wallet extends BaseModel {
   @column({ isPrimary: true })
   public id: number
 
@@ -11,28 +11,25 @@ export default class PayoutDetail extends BaseModel {
   public uniqueId: string = genRandomUuid()
 
   @column()
-  public userId: number
+  public cryptoNetworkId: string
 
   @column()
-  public type: PayoutType
+  public walletAddress: string
 
   @column()
-  public networkId: string | null
+  public qrCodeUrl?: string
 
   @column()
-  public walletAddress: string | null
+  public paymentIntentId: string
+
+  /**
+   * Wallet type: 'master' is the main wallet where assets are flushed to; 'child' is used for individual payments.
+   */
+  @column()
+  public type: WalletType
 
   @column()
-  public currencyId: string | null
-
-  @column()
-  public bankAccountNo: string | null
-
-  @column()
-  public bankName: string | null
-
-  @column()
-  public isDeleted: boolean = false
+  public userId: string // or businessId, depending on your naming
 
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime
