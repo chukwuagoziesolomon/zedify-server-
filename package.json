@@ -29,7 +29,7 @@
     "adonis5-swagger": "^1.4.1",
     "axios": "^1.10.0",
     "cloudinary": "^2.10.0",
-    "contract-wallet-sdk": "theiceeman/contract-wallet-sdk",
+    "contract-wallet-sdk": "git+https://github.com/theiceeman/contract-wallet-sdk.git",
     "ethers": "^6.14.4",
     "handlebars": "^4.7.8",
     "luxon": "^3.4.4",
