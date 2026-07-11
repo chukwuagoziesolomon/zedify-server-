@@ -25,6 +25,7 @@ import '../routes/user/transfer'
 import '../routes/user/payment_link'
 import '../routes/user/sse'
 import '../routes/user/withdrawal'
+import '../routes/user/wallet'
 import '../routes/user/shop_builder'
 import '../routes/user/shop_products'
 

@@ -12,16 +12,35 @@ export interface OpenRouterResponse {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+/**
+ * Rate limit tracking for adaptive backoff
+ */
+interface RateLimitTracker {
+  lastResetTime: number
+  requestCount: number
+  baseDelay: number
+}
+
 class OpenRouterServiceClass {
   private readonly baseUrl = 'https://openrouter.ai/api/v1/chat/completions'
+  private readonly rateLimitTrackers = new Map<string, RateLimitTracker>()
+  private readonly MAX_RETRIES = 3
+  private readonly INITIAL_BACKOFF_MS = 1000 // Start with 1s
+
   private get apiKey(): string {
     return Env.get('OPENROUTER_API_KEY', '')
   }
+
   private get primaryModel(): string {
     return Env.get('OPENROUTER_PRIMARY_MODEL', 'meta-llama/llama-3.2-3b-instruct:free')
   }
+
   private get fallbackModel(): string {
     return Env.get('OPENROUTER_FALLBACK_MODEL', 'meta-llama/llama-3.3-70b-instruct:free')
+  }
+
+  private get reasoningModel(): string {
+    return Env.get('OPENROUTER_REASONING_MODEL', 'moonshotai/kimi-k2.7-code')
   }
 
   private get headers() {
@@ -34,52 +53,152 @@ class OpenRouterServiceClass {
   }
 
   /**
-   * Non-streaming chat — returns full response after completion.
-   * Retries once on 429 (rate limit) with a 3-second delay before falling back.
+   * Get or initialize rate limit tracker for a model
+   */
+  private getRateLimitTracker(model: string): RateLimitTracker {
+    if (!this.rateLimitTrackers.has(model)) {
+      this.rateLimitTrackers.set(model, {
+        lastResetTime: Date.now(),
+        requestCount: 0,
+        baseDelay: this.INITIAL_BACKOFF_MS,
+      })
+    }
+    return this.rateLimitTrackers.get(model)!
+  }
+
+  /**
+   * Calculate exponential backoff with jitter
+   * Delay increases exponentially: 1s, 2s, 4s, 8s...
+   * Plus random jitter (0-20% of base delay)
+   */
+  private calculateBackoffDelay(retryCount: number, baseDelay: number): number {
+    const exponentialDelay = baseDelay * Math.pow(2, retryCount)
+    const jitter = Math.random() * (baseDelay * 0.2)
+    return exponentialDelay + jitter
+  }
+
+  /**
+   * Update rate limit tracker after request
+   */
+  private updateRateLimitTracker(model: string, isRateLimit: boolean): void {
+    const tracker = this.getRateLimitTracker(model)
+    const now = Date.now()
+
+    // Reset every minute
+    if (now - tracker.lastResetTime > 60000) {
+      tracker.requestCount = 0
+      tracker.lastResetTime = now
+      tracker.baseDelay = this.INITIAL_BACKOFF_MS
+    }
+
+    tracker.requestCount++
+
+    if (isRateLimit) {
+      // Increase base delay on rate limit
+      tracker.baseDelay = Math.min(tracker.baseDelay * 1.5, 10000) // Cap at 10s
+      Logger.warn('[OpenRouter] Rate limit detected for %s. Base delay adjusted to: %dms', model, tracker.baseDelay)
+    }
+  }
+
+  /**
+   * Non-streaming chat with enhanced rate limit handling and multi-turn reasoning support
+   * Supports three models in fallback order:
+   * 1. Reasoning model (moonshotai/kimi-k2.7-code) with reasoning enabled
+   * 2. Primary model (llama-3.2) as backup
+   * 3. Fallback model (llama-3.3) with reduced features
+   *
+   * Implements exponential backoff with jitter for 429 rate limit errors.
+   * Preserves reasoning_details across turns for multi-turn conversations.
    */
   public async chat(
     messages: ConversationMessage[],
-    enableReasoning: boolean = true
+    enableReasoning: boolean = true,
+    useReasoningModel: boolean = true
   ): Promise<OpenRouterResponse> {
+    // Try reasoning model first if enabled and available
+    if (useReasoningModel && enableReasoning) {
+      try {
+        return await this.callWithRetry(this.reasoningModel, messages, true, true)
+      } catch (reasoningError: any) {
+        const detail =
+          reasoningError.response?.data?.error?.message ??
+          reasoningError.response?.data?.message ??
+          reasoningError.message
+        Logger.warn(
+          '[OpenRouter] Reasoning model failed, trying primary model. Error: %s | status: %s',
+          detail,
+          reasoningError.response?.status
+        )
+      }
+    }
+
+    // Try primary model
     try {
-      // Primary: pass reasoning_details back for multi-turn continuation
       return await this.callWithRetry(this.primaryModel, messages, enableReasoning, true)
     } catch (primaryError: any) {
-      const detail = primaryError.response?.data?.error?.message ?? primaryError.response?.data?.message ?? primaryError.message
-      Logger.warn('OpenRouter primary model failed, falling back. Error: %s | status: %s', detail, primaryError.response?.status)
+      const detail =
+        primaryError.response?.data?.error?.message ??
+        primaryError.response?.data?.message ??
+        primaryError.message
+      Logger.warn(
+        '[OpenRouter] primary model failed, falling back. Error: %s | status: %s',
+        detail,
+        primaryError.response?.status
+      )
+
       try {
         // Fallback: strip reasoning_details — free models don't support it
         return await this.callWithRetry(this.fallbackModel, messages, false, false)
       } catch (fallbackError: any) {
-        throw new Error(`OpenRouter both models failed. Last error: ${fallbackError.message}`)
+        throw new Error(`OpenRouter all models failed. Last error: ${fallbackError.message}`)
       }
     }
   }
 
   /**
-   * Wraps callModel with a single 429-retry (3s delay).
+   * Wraps callModel with exponential backoff retry logic (up to MAX_RETRIES).
+   * Handles 429 rate limits and 5xx server errors with adaptive backoff.
    */
   private async callWithRetry(
     model: string,
     messages: ConversationMessage[],
     enableReasoning: boolean,
-    preserveReasoning: boolean
+    preserveReasoning: boolean,
+    retryCount: number = 0
   ): Promise<OpenRouterResponse> {
     try {
       return await this.callModel(model, messages, enableReasoning, preserveReasoning)
     } catch (err: any) {
-      if (err.response?.status === 429) {
-        Logger.warn('[OpenRouter] 429 rate limit on %s — retrying in 3s', model)
-        await sleep(3000)
-        return await this.callModel(model, messages, enableReasoning, preserveReasoning)
+      const status = err.response?.status
+      const isRetryable = status === 429 || (status >= 500 && status < 600)
+
+      if (!isRetryable || retryCount >= this.MAX_RETRIES) {
+        throw err
       }
-      throw err
+
+      const tracker = this.getRateLimitTracker(model)
+      const backoffDelay = this.calculateBackoffDelay(retryCount, tracker.baseDelay)
+      this.updateRateLimitTracker(model, status === 429)
+
+      const reason = status === 429 ? 'rate limit (429)' : `server error (${status})`
+      Logger.warn(
+        '[OpenRouter] %s on %s — retrying in %dms (attempt %d/%d)',
+        reason,
+        model,
+        Math.round(backoffDelay),
+        retryCount + 1,
+        this.MAX_RETRIES
+      )
+
+      await sleep(backoffDelay)
+      return this.callWithRetry(model, messages, enableReasoning, preserveReasoning, retryCount + 1)
     }
   }
 
   /**
-   * Streaming chat — returns an async generator that yields token chunks one by one.
-   * Falls back to non-streaming if the stream fails.
+   * Streaming chat with improved rate limit handling
+   * Returns an async generator that yields token chunks one by one.
+   * Falls back to non-streaming if the stream fails or rate limits.
    *
    * Usage:
    *   for await (const chunk of openRouterService.stream(messages)) {
@@ -129,14 +248,22 @@ class OpenRouterServiceClass {
         }
       }
     } catch (error: any) {
-      const detail = error.response?.data?.error?.message ?? error.response?.data?.message ?? error.message
-      Logger.warn('[OpenRouter] Stream failed, falling back to non-streaming: %s | status: %s', detail, error.response?.status)
-      if (error.response?.status === 429) {
-        Logger.warn('[OpenRouter] 429 on stream — waiting 3s before non-streaming fallback')
-        await sleep(3000)
+      const status = error.response?.status
+      const detail =
+        error.response?.data?.error?.message ?? error.response?.data?.message ?? error.message
+
+      if (status === 429) {
+        Logger.warn('[OpenRouter] 429 on stream — falling back to non-streaming with retries')
+        const tracker = this.getRateLimitTracker(this.primaryModel)
+        const backoffDelay = this.calculateBackoffDelay(0, tracker.baseDelay)
+        this.updateRateLimitTracker(this.primaryModel, true)
+        await sleep(backoffDelay)
+      } else {
+        Logger.warn('[OpenRouter] Stream failed, falling back to non-streaming: %s | status: %s', detail, status)
       }
+
       // Fallback: call non-streaming and yield the full content at once
-      const result = await this.chat(messages, false)
+      const result = await this.chat(messages, false, false)
       if (result.content) yield result.content
     }
   }
@@ -154,11 +281,13 @@ class OpenRouterServiceClass {
         .filter((m) => m.content !== null && m.content !== undefined && String(m.content).trim() !== '')
         .map((m) => {
           const msg: any = { role: m.role, content: m.content }
-          // Pass reasoning_details back to primary model for multi-turn continuation.
+          // Pass reasoning_details back to primary/reasoning models for multi-turn continuation.
           // On the first turn enableReasoning=true triggers reasoning; on subsequent turns
           // the preserved reasoning_details let the model continue from where it left off
           // even without re-enabling reasoning (matches OpenRouter multi-turn pattern).
-          if (preserveReasoning && m.reasoning_details) msg.reasoning_details = m.reasoning_details
+          if (preserveReasoning && m.reasoning_details) {
+            msg.reasoning_details = m.reasoning_details
+          }
           return msg
         }),
     }

@@ -27,13 +27,21 @@ export class FileUploadService {
   }
   /**
    * Allowed image MIME types for CAC documents
+   * Includes common variations from different browsers/clients
    */
   private readonly ALLOWED_IMAGE_TYPES = [
     'image/jpeg',
+    'image/jpg',
     'image/png',
     'image/webp',
-    'image/jpg',
+    'image/x-png', // Some systems send this
+    'image/x-webp', // Some systems send this
   ]
+
+  /**
+   * Allowed image file extensions
+   */
+  private readonly ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp']
 
   /**
    * Allowed document MIME types for approval letters
@@ -43,6 +51,11 @@ export class FileUploadService {
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ]
+
+  /**
+   * Allowed document file extensions
+   */
+  private readonly ALLOWED_DOCUMENT_EXTENSIONS = ['pdf', 'doc', 'docx']
 
   /**
    * Maximum file sizes in bytes
@@ -90,16 +103,29 @@ export class FileUploadService {
   }
 
   /**
-   * Validate image file
+   * Validate image file — check both MIME type and file extension
+   * Supports common variations in how different clients send MIME types
    */
   private validateImageFile(file: MultipartFileContract): void {
     if (!file.isValid) {
       throw new Error(`Invalid file: ${file.errors[0]?.message || 'Unknown error'}`)
     }
 
-    if (!this.ALLOWED_IMAGE_TYPES.includes(file.type!)) {
+    // Check MIME type (case-insensitive)
+    const mimeType = (file.type || '').toLowerCase()
+    const isValidMimeType = this.ALLOWED_IMAGE_TYPES.some(
+      (type) => type.toLowerCase() === mimeType
+    )
+
+    // Check file extension as fallback
+    const extname = file.extname?.toLowerCase() || ''
+    const isValidExtension = this.ALLOWED_IMAGE_EXTENSIONS.some(
+      (ext) => ext === extname.replace(/^\./, '')
+    )
+
+    if (!isValidMimeType && !isValidExtension) {
       throw new Error(
-        `Invalid file type for CAC document. Allowed types: ${this.ALLOWED_IMAGE_TYPES.join(', ')}`
+        `Invalid file type for CAC document. MIME type: ${file.type}, Extension: ${extname}. Allowed types: ${this.ALLOWED_IMAGE_TYPES.join(', ')}`
       )
     }
 
@@ -111,16 +137,28 @@ export class FileUploadService {
   }
 
   /**
-   * Validate document file
+   * Validate document file — check both MIME type and file extension
    */
   private validateDocumentFile(file: MultipartFileContract): void {
     if (!file.isValid) {
       throw new Error(`Invalid file: ${file.errors[0]?.message || 'Unknown error'}`)
     }
 
-    if (!this.ALLOWED_DOCUMENT_TYPES.includes(file.type!)) {
+    // Check MIME type (case-insensitive)
+    const mimeType = (file.type || '').toLowerCase()
+    const isValidMimeType = this.ALLOWED_DOCUMENT_TYPES.some(
+      (type) => type.toLowerCase() === mimeType
+    )
+
+    // Check file extension as fallback
+    const extname = file.extname?.toLowerCase() || ''
+    const isValidExtension = this.ALLOWED_DOCUMENT_EXTENSIONS.some(
+      (ext) => ext === extname.replace(/^\./, '')
+    )
+
+    if (!isValidMimeType && !isValidExtension) {
       throw new Error(
-        `Invalid file type for approval letter. Allowed types: PDF, Word (.docx)`
+        `Invalid file type for approval letter. MIME type: ${file.type}, Extension: ${extname}. Allowed types: PDF, Word (.doc, .docx)`
       )
     }
 
