@@ -281,7 +281,7 @@ export class PaymentIndexerService {
         return
       }
 
-      const isPaid = result.status === 'succeeded' || result.status === 'completed'
+      const isPaid = this.isFiberPaymentSuccess(result.status)
       if (!isPaid) {
         return
       }
@@ -303,6 +303,11 @@ export class PaymentIndexerService {
         `[PaymentIndexer] Fiber invoice check failed for intent ${paymentIntent.uniqueId}: ${error}`
       )
     }
+  }
+
+  private isFiberPaymentSuccess(status: string): boolean {
+    const normalized = String(status || '').toLowerCase()
+    return ['succeeded', 'completed', 'success', 'paid', 'confirmed'].includes(normalized)
   }
 
   /**

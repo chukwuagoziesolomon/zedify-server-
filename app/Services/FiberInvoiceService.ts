@@ -86,13 +86,18 @@ class FiberInvoiceServiceClass {
       return { invoice: null, payment }
     }
 
-    if (payment && (payment.status === 'succeeded' || payment.status === 'completed')) {
+    if (payment && this.isFiberPaymentSuccess(payment.status)) {
       if (invoice.status === FiberInvoiceStatus.PENDING) {
         await this.markPaid(invoice.uniqueId, payment.paymentHash)
       }
     }
 
     return { invoice, payment }
+  }
+
+  private isFiberPaymentSuccess(status: string): boolean {
+    const normalized = String(status || '').toLowerCase()
+    return ['succeeded', 'completed', 'success', 'paid', 'confirmed'].includes(normalized)
   }
 
   public async syncInvoices(businessId: string): Promise<FiberInvoice[]> {
@@ -107,7 +112,7 @@ class FiberInvoiceServiceClass {
         }
 
         const { payment } = await this.checkInvoiceStatus(invoice.invoiceAddress)
-        if (payment && (payment.status === 'succeeded' || payment.status === 'completed')) {
+        if (payment && this.isFiberPaymentSuccess(payment.status)) {
           await this.markPaid(invoice.uniqueId, payment.paymentHash)
         }
       } catch (error) {
