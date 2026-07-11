@@ -15,9 +15,16 @@
 
 import Logger from '@ioc:Adonis/Core/Logger'
 import HttpExceptionHandler from '@ioc:Adonis/Core/HttpExceptionHandler'
+import { formatErrorMessage } from 'App/helpers/utils'
 
 export default class ExceptionHandler extends HttpExceptionHandler {
   constructor () {
     super(Logger)
+  }
+
+  public async handle (error, ctx) {
+    // Use your custom error formatter for all errors
+    const formatted = formatErrorMessage(error)
+    return ctx.response.status(formatted.code || 500).send(formatted)
   }
 }

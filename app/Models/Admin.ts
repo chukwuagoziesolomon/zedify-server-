@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon'
 import Hash from '@ioc:Adonis/Core/Hash'
-import { BaseModel, HasMany, beforeSave, column, hasMany } from '@ioc:Adonis/Lucid/Orm'
+import { BaseModel, beforeSave, column } from '@ioc:Adonis/Lucid/Orm'
 import { genRandomUuid } from 'App/helpers/utils'
 
 export default class Admin extends BaseModel {
@@ -11,7 +11,7 @@ export default class Admin extends BaseModel {
   public uniqueId: string = genRandomUuid()
 
   @column()
-  public type: 'SUPER_ADMIN' | 'ADMIN' | 'LP'
+  public type: 'SUPER_ADMIN' | 'ADMIN'
 
   @column()
   public email: string

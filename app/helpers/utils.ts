@@ -1,6 +1,6 @@
-import Env from '@ioc:Adonis/Core/Env'
+// import Env from '@ioc:Adonis/Core/Env'
 import { v4 as uuidv4 } from 'uuid';
-import { ethers } from 'ethers';
+// import { ethers } from 'ethers';
 
 export function genRandomUuid() {
   return String(uuidv4()).toLowerCase()
@@ -10,7 +10,33 @@ export function formatErrorMessage(error: any) {
   let data: string;
   let code: number;
 
-  if (error && error.messages) {
+  console.error(error)
+
+  if (
+    error &&
+    Array.isArray(error.errors) &&
+    error.errors[0]?.message &&
+    error.errors[0].message.includes('E_UNAUTHORIZED_ACCESS')
+  ) {
+    return {
+      error: true,
+      data: 'Unauthorized access. Please sign in again.',
+      details: error.errors[0].message,
+      code: 401,
+    }
+  }
+
+  if (error && error.code === 'E_VALIDATION_FAILURE') {
+    return {
+      error: true,
+      message: 'Validation failed',
+      errors: error.messages,
+      code: 422,
+    };
+  } else if (error && error.code === 'E_INVALID_AUTH_UID') {
+    data = 'Invalid email or password';
+    code = 401;
+  } else if (error && error.messages) {
     const errorMessage = error.messages.errors[0];
     data = `${errorMessage.message}`;
     code = 400;
@@ -20,8 +46,12 @@ export function formatErrorMessage(error: any) {
   } else if (error && error.code === 'E_INVALID_AUTH_PASSWORD') {
     data = 'Password does not match!';
     code = 401;
-  } else if (error && error.code === 'E_UNAUTHORIZED_ACCESS') {
-    data = 'Authentication error. Sign in again.';
+  } else if (
+    (error && error.code === 'E_UNAUTHORIZED_ACCESS') ||
+    (typeof error === 'string' && error.includes('E_UNAUTHORIZED_ACCESS')) ||
+    (error && typeof error.message === 'string' && error.message.includes('E_UNAUTHORIZED_ACCESS'))
+  ) {
+    data = 'Unauthorized access. Please sign in again.';
     code = 401;
   } else if (String(error)?.split('Error:')) {
     data = String(error)?.split('Error:')[1]

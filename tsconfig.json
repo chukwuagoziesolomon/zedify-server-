@@ -14,7 +14,7 @@
     "sourceMap": true,
     "paths": {
       "App/*": [
-        "./app/*"
+        "app/*"
       ],
       "Config/*": [
         "./config/*"
@@ -32,7 +32,8 @@
       "@japa/preset-adonis/build/adonis-typings",
       "@adonisjs/auth",
       "@adonisjs/lucid",
-      "adonis5-scheduler"
+      "adonis5-scheduler",
+      "adonis5-swagger"
     ],
     "resolveJsonModule": true
   }

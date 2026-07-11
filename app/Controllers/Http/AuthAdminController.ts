@@ -43,7 +43,7 @@ export default class AuthAdminController {
             });
 
             if (result !== null) {
-                response.status(200).json({ data: "Admin created!" });
+                response.status(200).json(await formatSuccessMessage("Admin created!", result));
             } else {
                 throw new Error("Action failed!");
             }
@@ -63,10 +63,13 @@ export default class AuthAdminController {
             if (admin.isBlocked)
                 throw new Error('Account blocked!')
 
-            const token = await auth.use('admin').attempt(email, password)
-            response.status(200).json({ data: token })
+            const token = await auth.use('admin').attempt(email, password, {
+                expiresIn: '12 hrs'  // 12 hrs
+            })
+            response.status(200).json(await formatSuccessMessage("Admin login successful", token))
 
         } catch (error) {
+            console.error(error)
             response.status(400).json(await formatErrorMessage(error))
         }
     }
@@ -78,7 +81,7 @@ export default class AuthAdminController {
             if (!user)
                 throw new Error('Authentication error!')
 
-            response.status(200).json({ user });
+            response.status(200).json(await formatSuccessMessage("Admin retrieved successfully", user));
         } catch (error) {
             response.status(400).json(await formatErrorMessage(error))
         }
@@ -88,13 +91,10 @@ export default class AuthAdminController {
         try {
             const user = auth.use('admin').user ?? '';
             if (!user)
-                throw new Error('Authentication error!')
-
-            if (user.type !== 'SUPER_ADMIN')
-                throw new Error('Not authorized!')
+                throw new Error('Not admin!')
 
             let data = await Admin.query()
-            response.status(200).json({ data });
+            response.status(200).json(await formatSuccessMessage("Admins retrieved successfully", data));
         } catch (error) {
             response.status(400).json(await formatErrorMessage(error))
         }
@@ -110,14 +110,15 @@ export default class AuthAdminController {
                 throw new Error('Not authorized!')
 
             let result = await Admin.query()
-                .where('unique_id', params.adminId)
+                .where('id', params.adminId)
+
+            if (result[0].isBlocked === true)
+                throw new Error('Account already blocked!')
+
+            await Admin.query().where('id', params.adminId)
                 .update({ is_blocked: true })
 
-            if (result === null) {
-                throw new Error("Action failed!");
-            } else {
-                response.status(200).json(await formatSuccessMessage("Account blocked.",null));
-            }
+            response.status(200).json(await formatSuccessMessage("Account blocked.", null));
         } catch (error) {
             response.status(400).json(await formatErrorMessage(error))
         }
@@ -133,14 +134,15 @@ export default class AuthAdminController {
                 throw new Error('Not authorized!')
 
             let result = await Admin.query()
-                .where('unique_id', params.adminId)
+                .where('id', params.adminId)
+
+            if (result[0].isBlocked === false)
+                throw new Error('Account already unblocked!')
+
+            await Admin.query().where('id', params.adminId)
                 .update({ is_blocked: false })
 
-            if (result === null) {
-                throw new Error("Action failed!");
-            } else {
-                response.status(200).json(await formatSuccessMessage("Account unblocked.",null));
-            }
+            response.status(200).json(await formatSuccessMessage("Account unblocked.", null));
         } catch (error) {
             response.status(400).json(await formatErrorMessage(error))
         }
