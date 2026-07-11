@@ -11,7 +11,7 @@ export default class Admin extends BaseModel {
   public uniqueId: string = genRandomUuid()
 
   @column()
-  public type: 'SUPER_ADMIN' | 'ADMIN' | 'LP'
+  public type: 'SUPER_ADMIN' | 'ADMIN'
 
   @column()
   public email: string

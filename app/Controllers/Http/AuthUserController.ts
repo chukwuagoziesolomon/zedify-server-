@@ -9,6 +9,7 @@ import Env from '@ioc:Adonis/Core/Env'
 
 import { NotificationService } from 'App/Lib/notification/notification'
 import Admin from 'App/Models/Admin';
+import SignupValidator from 'App/Validators/SignupValidator';
 
 const jwtConstants = {
   secret: Env.get('JWT_KEY'),
@@ -35,6 +36,10 @@ export default class AuthUserController {
       phone: schema.string([
         rules.maxLength(15),
         rules.unique({ table: 'users', column: 'phone' })
+      ]),
+      business_name: schema.string([
+        rules.minLength(2),
+        rules.maxLength(255)
       ])
     })
     const messages = {
@@ -46,17 +51,17 @@ export default class AuthUserController {
 
   public async signup({ request, response }: HttpContextContract) {
     try {
-      const data = request.body();
-      await this.validate(request)
+      const payload = await request.validate(SignupValidator)
 
       let result = await User.create({
-        email: data.email,
-        password: data.password,
-        phone: data.phone,
+        email: payload.email,
+        password: payload.password,
+        phone: payload.phone || undefined,
+        businessName: payload.business_name,
       });
 
       if (result !== null) {
-        response.status(200).json({ data: "User created!" });
+        response.status(200).json(await formatSuccessMessage("User created!", result));
       } else {
         throw new Error("Action failed!");
       }
@@ -75,10 +80,10 @@ export default class AuthUserController {
       const token = await auth.use('user').attempt(email, password, {
         expiresIn: '12 hrs'  // 12 hrs
       })
-      response.status(200).json({ data: token })
+      response.status(200).json(await formatSuccessMessage("Login successful", token))
     } catch (error) {
       console.error(error)
-      response.status(400).json({ data: 'Invalid credentials!' })
+      response.status(400).json(await formatErrorMessage(error))
     }
   }
 
@@ -121,7 +126,7 @@ export default class AuthUserController {
         throw new Error('Failed to send password reset email');
       }
 
-      response.status(200).json({ message: 'Password reset link sent to your email.', data: fullHash });
+      response.status(200).json(await formatSuccessMessage('Password reset link sent to your email.', fullHash));
     } catch (error) {
       response.status(400).json(await formatErrorMessage(error))
     }
@@ -147,10 +152,10 @@ export default class AuthUserController {
       admin.password = newPassword;
       await admin.save();
 
-      response.status(200).json({ message: 'Admin password reset successfully.' });
+      response.status(200).json(await formatSuccessMessage('Admin password reset successfully.', null));
     } catch (error) {
       console.error(error)
-      response.status(400).json({ error: error.message });
+      response.status(400).json(await formatErrorMessage(error))
     }
   }
 
@@ -199,7 +204,7 @@ export default class AuthUserController {
         throw new Error('Failed to send password reset email');
       }
 
-      response.status(200).json({ message: 'Password reset link sent to your email.', data: fullHash });
+      response.status(200).json(await formatSuccessMessage('Password reset link sent to your email.', fullHash));
     } catch (error) {
       response.status(400).json(await formatErrorMessage(error))
     }
@@ -248,19 +253,19 @@ export default class AuthUserController {
       user.password = newPassword;
       await user.save();
 
-      response.status(200).json({ message: 'Password reset successfully.' });
+      response.status(200).json(await formatSuccessMessage('Password reset successfully.', null));
     } catch (error) {
       console.error(error)
-      response.status(400).json({ error: error.message });
+      response.status(400).json(await formatErrorMessage(error))
     }
   }
 
   public async logout({ auth, response }: HttpContextContract) {
     try {
       await auth.use('user').revoke();
-      response.status(200).json({ revoked: true });
+      response.status(200).json(await formatSuccessMessage("Logout successful", { revoked: true }));
     } catch (error) {
-      response.status(400).json({ data: 'Failed to revoke token' });
+      response.status(400).json(await formatErrorMessage(error))
     }
   }
 
@@ -271,9 +276,9 @@ export default class AuthUserController {
       if (!user)
         throw new Error('Authentication error!')
 
-      response.status(200).json({ data: user });
+      response.status(200).json(await formatSuccessMessage("User retrieved successfully", user));
     } catch (error) {
-      response.status(400).json({ data: error.message });
+      response.status(400).json(await formatErrorMessage(error))
     }
   }
 
@@ -325,10 +330,10 @@ export default class AuthUserController {
       if (result === null) {
         throw new Error("Action failed!");
       } else {
-        response.status(200).json({ data: result });
+        response.status(200).json(await formatSuccessMessage("User retrieved successfully", result));
       }
     } catch (error) {
-      response.status(400).json({ data: error.message });
+      response.status(400).json(await formatErrorMessage(error))
     }
   }
 
@@ -394,7 +399,7 @@ export default class AuthUserController {
 
       let data = await User.query()
 
-      response.status(200).json({ data });
+      response.status(200).json(await formatSuccessMessage("Users retrieved successfully", data));
     } catch (error) {
       response.status(400).json(await formatErrorMessage(error))
     }
