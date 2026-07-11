@@ -1,4 +1,4 @@
-import { schema, CustomMessages } from '@ioc:Adonis/Core/Validator'
+import { schema, CustomMessages, validator } from '@ioc:Adonis/Core/Validator'
 
 export class PaymentWebhookSchema {
   /**
@@ -72,6 +72,6 @@ export class PaymentWebhookSchema {
       'chainId.number': 'Chain ID must be a number',
     }
 
-    return await payloadSchema.validate(data, messages)
+    return await validator.validate(payloadSchema, data, messages)
   }
 }

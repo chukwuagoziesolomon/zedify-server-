@@ -1,4 +1,4 @@
-import { schema, rules } from '@ioc:Adonis/Core/Validator'
+import { schema } from '@ioc:Adonis/Core/Validator'
 import { FeeBearer, CurrentEnvironment, PayoutInterval } from 'App/Lib/types'
 
 export default class SettingsGeneralValidator {
