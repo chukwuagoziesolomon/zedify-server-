@@ -1,5 +1,3 @@
-
-
 export enum FeeBearer {
   BUSINESS = 'BUSINESS',
   CUSTOMERS = 'CUSTOMERS',
@@ -14,4 +12,9 @@ export enum PayoutInterval {
   INSTANT = 'INSTANT',
   DAILY = 'DAILY',
   WEEKLY = 'WEEKLY',
+}
+
+export enum PayoutType {
+  CRYPTO = 'CRYPTO',
+  FIAT = 'FIAT',
 }

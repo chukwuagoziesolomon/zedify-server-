@@ -2,7 +2,6 @@ import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
 import BusinessSetting from 'App/Models/BusinessSetting'
 import { formatErrorMessage, formatSuccessMessage } from 'App/helpers/utils'
 import RolesController from './RolesController'
-import { FeeBearer, CurrentEnvironment, PayoutInterval } from 'App/Lib/types'
 import SettingsGeneralValidator from 'App/Validators/SettingsGeneralValidator'
 
 export default class SettingsGeneralController extends RolesController {
