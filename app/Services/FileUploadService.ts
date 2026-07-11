@@ -167,7 +167,7 @@ export class FileUploadService {
         path: uploadResult.public_id,
         url: uploadResult.secure_url,
         size: uploadResult.bytes || file.size || 0,
-        mimeType: uploadResult.resource_type === 'image' ? uploadResult.format : file.mimetype || uploadResult.resource_type,
+        mimeType: uploadResult.resource_type === 'image' ? uploadResult.format : file.type || uploadResult.resource_type,
       }
     } catch (error: any) {
       throw new Error(`Failed to upload file: ${error.message || error}`)
