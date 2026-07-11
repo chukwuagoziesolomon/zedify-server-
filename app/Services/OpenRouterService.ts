@@ -31,16 +31,8 @@ class OpenRouterServiceClass {
     return Env.get('OPENROUTER_API_KEY', '')
   }
 
-  private get primaryModel(): string {
-    return Env.get('OPENROUTER_PRIMARY_MODEL', 'meta-llama/llama-3.2-3b-instruct:free')
-  }
-
-  private get fallbackModel(): string {
-    return Env.get('OPENROUTER_FALLBACK_MODEL', 'meta-llama/llama-3.3-70b-instruct:free')
-  }
-
-  private get reasoningModel(): string {
-    return Env.get('OPENROUTER_REASONING_MODEL', 'moonshotai/kimi-k2.7-code')
+  private get model(): string {
+    return Env.get('OPENROUTER_MODEL', 'moonshotai/kimi-k2.7-code')
   }
 
   private get headers() {
@@ -101,58 +93,16 @@ class OpenRouterServiceClass {
   }
 
   /**
-   * Non-streaming chat with enhanced rate limit handling and multi-turn reasoning support
-   * Supports three models in fallback order:
-   * 1. Reasoning model (moonshotai/kimi-k2.7-code) with reasoning enabled
-   * 2. Primary model (llama-3.2) as backup
-   * 3. Fallback model (llama-3.3) with reduced features
-   *
+   * Non-streaming chat with enhanced rate limit handling and multi-turn reasoning support.
+   * Uses Kimi model with reasoning enabled for best results.
    * Implements exponential backoff with jitter for 429 rate limit errors.
    * Preserves reasoning_details across turns for multi-turn conversations.
    */
   public async chat(
     messages: ConversationMessage[],
-    enableReasoning: boolean = true,
-    useReasoningModel: boolean = true
+    enableReasoning: boolean = true
   ): Promise<OpenRouterResponse> {
-    // Try reasoning model first if enabled and available
-    if (useReasoningModel && enableReasoning) {
-      try {
-        return await this.callWithRetry(this.reasoningModel, messages, true, true)
-      } catch (reasoningError: any) {
-        const detail =
-          reasoningError.response?.data?.error?.message ??
-          reasoningError.response?.data?.message ??
-          reasoningError.message
-        Logger.warn(
-          '[OpenRouter] Reasoning model failed, trying primary model. Error: %s | status: %s',
-          detail,
-          reasoningError.response?.status
-        )
-      }
-    }
-
-    // Try primary model
-    try {
-      return await this.callWithRetry(this.primaryModel, messages, enableReasoning, true)
-    } catch (primaryError: any) {
-      const detail =
-        primaryError.response?.data?.error?.message ??
-        primaryError.response?.data?.message ??
-        primaryError.message
-      Logger.warn(
-        '[OpenRouter] primary model failed, falling back. Error: %s | status: %s',
-        detail,
-        primaryError.response?.status
-      )
-
-      try {
-        // Fallback: strip reasoning_details — free models don't support it
-        return await this.callWithRetry(this.fallbackModel, messages, false, false)
-      } catch (fallbackError: any) {
-        throw new Error(`OpenRouter all models failed. Last error: ${fallbackError.message}`)
-      }
-    }
+    return await this.callWithRetry(this.model, messages, enableReasoning, true)
   }
 
   /**
@@ -207,15 +157,21 @@ class OpenRouterServiceClass {
    */
   public async *stream(
     messages: ConversationMessage[],
-    enableReasoning: boolean = false
+    enableReasoning: boolean = true
   ): AsyncGenerator<string> {
     const body = {
-      model: this.primaryModel,
+      model: this.model,
       stream: true,
-      // Never forward reasoning_details for streaming — causes 400 on most models
       messages: messages
         .filter((m) => m.content !== null && m.content !== undefined && String(m.content).trim() !== '')
-        .map((m) => ({ role: m.role, content: m.content })),
+        .map((m) => {
+          const msg: any = { role: m.role, content: m.content }
+          // Pass reasoning_details back for multi-turn continuation
+          if (m.reasoning_details) {
+            msg.reasoning_details = m.reasoning_details
+          }
+          return msg
+        }),
       ...(enableReasoning ? { reasoning: { enabled: true } } : {}),
     }
 
@@ -254,16 +210,16 @@ class OpenRouterServiceClass {
 
       if (status === 429) {
         Logger.warn('[OpenRouter] 429 on stream — falling back to non-streaming with retries')
-        const tracker = this.getRateLimitTracker(this.primaryModel)
+        const tracker = this.getRateLimitTracker(this.model)
         const backoffDelay = this.calculateBackoffDelay(0, tracker.baseDelay)
-        this.updateRateLimitTracker(this.primaryModel, true)
+        this.updateRateLimitTracker(this.model, true)
         await sleep(backoffDelay)
       } else {
         Logger.warn('[OpenRouter] Stream failed, falling back to non-streaming: %s | status: %s', detail, status)
       }
 
       // Fallback: call non-streaming and yield the full content at once
-      const result = await this.chat(messages, false, false)
+      const result = await this.chat(messages, enableReasoning)
       if (result.content) yield result.content
     }
   }
@@ -272,7 +228,7 @@ class OpenRouterServiceClass {
     model: string,
     messages: ConversationMessage[],
     enableReasoning: boolean,
-    preserveReasoning: boolean = false
+    preserveReasoning: boolean = true
   ): Promise<OpenRouterResponse> {
     const body: any = {
       model,
@@ -281,18 +237,16 @@ class OpenRouterServiceClass {
         .filter((m) => m.content !== null && m.content !== undefined && String(m.content).trim() !== '')
         .map((m) => {
           const msg: any = { role: m.role, content: m.content }
-          // Pass reasoning_details back to primary/reasoning models for multi-turn continuation.
-          // On the first turn enableReasoning=true triggers reasoning; on subsequent turns
-          // the preserved reasoning_details let the model continue from where it left off
-          // even without re-enabling reasoning (matches OpenRouter multi-turn pattern).
-          if (preserveReasoning && m.reasoning_details) {
+          // Kimi supports multi-turn reasoning via reasoning_details
+          // Pass them back to continue reasoning from where it left off
+          if (m.reasoning_details) {
             msg.reasoning_details = m.reasoning_details
           }
           return msg
         }),
     }
 
-    // Only set reasoning.enabled on turns where we explicitly want to start reasoning
+    // Enable reasoning on Kimi model
     if (enableReasoning) {
       body.reasoning = { enabled: true }
     }
