@@ -2862,7 +2862,7 @@ content-disposition@^0.5.4:
 
 "contract-wallet-sdk@git+https://github.com/theiceeman/contract-wallet-sdk.git":
   version "0.0.11"
-  resolved "git+ssh://git@github.com/theiceeman/contract-wallet-sdk.git#bdeb0f2c434b4a7b33d76e635937e20d1c48aad0"
+  resolved "git+https://github.com/theiceeman/contract-wallet-sdk.git#bdeb0f2c434b4a7b33d76e635937e20d1c48aad0"
   dependencies:
     "@babel/preset-env" "^7.28.0"
     bignumber.js "^9.3.0"
