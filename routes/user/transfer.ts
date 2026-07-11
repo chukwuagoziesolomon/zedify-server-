@@ -21,6 +21,9 @@ Route.group(() => {
   Route.get('/transfers/:id', 'TransferController.getTransfer')
   Route.post('/transfer/initiate', 'TransferController.initiateTransfer')
   Route.post('/transfer/:id/cancel', 'TransferController.cancelTransfer')
+
+  // Payout history
+  Route.get('/payout/history', 'PayoutHistoryController.history')
 })
   .prefix('/api/user')
   .middleware('auth')

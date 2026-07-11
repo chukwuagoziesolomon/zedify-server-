@@ -5,6 +5,7 @@ import Shop from 'App/Models/Shop'
 import ShopProduct from 'App/Models/ShopProduct'
 import { FileUploadService } from 'App/Services/FileUploadService'
 import { genRandomUuid } from 'App/helpers/utils'
+import { getDefaultFeatures, SHOP_PRODUCT_FEATURES } from 'App/Lib/shopFeatures'
 
 export default class ShopProductController extends RolesController {
   /**
@@ -37,20 +38,42 @@ export default class ShopProductController extends RolesController {
   /**
    * POST /user/shop/products
    * Create a new product.
-   * Body (JSON): { name, price, description?, category?, stock?, track_stock?, variants? }
+   * Body (JSON): { name, price, description?, category?, stock?, track_stock?, variants?, product_type? }
    */
   public async create({ auth, request, response }: HttpContextContract) {
     try {
       const uniqueId = this.allowOnlyLoggedInUsers(auth)
       const shop = await Shop.query().where('userId', uniqueId).firstOrFail()
 
-      const { name, price, description, category, stock, track_stock, variants } = request.only([
-        'name', 'price', 'description', 'category', 'stock', 'track_stock', 'variants',
+      const { name, price, description, category, stock, track_stock, variants, product_type } = request.only([
+        'name', 'price', 'description', 'category', 'stock', 'track_stock', 'variants', 'product_type',
       ])
 
       if (!name) throw new Error('name is required.')
       if (price === undefined || price === null) throw new Error('price is required.')
       if (isNaN(parseFloat(price))) throw new Error('price must be a number.')
+
+      const features = shop.features || getDefaultFeatures(shop.template || 'yanga-default')
+      const existingCount = await ShopProduct.query().where('shopId', shop.uniqueId).count('id as total')
+      const currentCount = Number((existingCount as any)[0]?.total || 0)
+      if (currentCount >= features.max_products) {
+        throw new Error(`Maximum ${features.max_products} products allowed for this shop template.`)
+      }
+
+      if (product_type && !features.allowed_product_types.includes(product_type)) {
+        throw new Error(`Product type "${product_type}" is not allowed for this shop. Allowed: ${features.allowed_product_types.join(', ')}`)
+      }
+
+      if (features.allow_product_categories && !category) {
+        throw new Error('category is required for this shop template.')
+      }
+      if (!features.allow_product_categories && category) {
+        throw new Error('This shop template does not support product categories.')
+      }
+
+      if (!features.allow_product_variants && variants) {
+        throw new Error('This shop template does not support product variants.')
+      }
 
       const product = await ShopProduct.create({
         uniqueId: genRandomUuid(),
@@ -144,7 +167,14 @@ export default class ShopProductController extends RolesController {
 
       const files = request.files('images', { size: '5mb', extnames: ['jpg', 'jpeg', 'png', 'webp'] })
       if (!files || files.length === 0) throw new Error('At least one image is required.')
-      if (files.length > 5) throw new Error('Maximum 5 images per product.')
+
+      const features = shop.features || getDefaultFeatures(shop.template || 'yanga-default')
+      const maxImages = features.max_images_per_product || SHOP_PRODUCT_FEATURES.MAX_IMAGES_PER_PRODUCT
+      const existingCount = (product.images ?? []).length
+      if (existingCount + files.length > maxImages) {
+        throw new Error(`Maximum ${maxImages} images allowed per product. You already have ${existingCount}.`)
+      }
+      if (files.length > 5) throw new Error('Maximum 5 images per upload batch.')
 
       const existing: { url: string; publicId: string }[] = product.images ?? []
       const uploaded: { url: string; publicId: string }[] = []

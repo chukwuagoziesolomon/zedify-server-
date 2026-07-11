@@ -1,6 +1,7 @@
 import { hd, config, helpers, BI, Indexer, RPC } from '@ckb-lumos/lumos'
 import CryptoNetwork from 'App/Models/CryptoNetwork'
 import Logger from '@ioc:Adonis/Core/Logger'
+import crypto from 'crypto'
 
 const TESTNET_CONFIG = config.predefined.AGGRON4
 
@@ -33,7 +34,8 @@ class CKBServiceClass {
    * Generate a CKB testnet address from a private key
    */
   public generateAddress(privateKey: string): string {
-    const args = hd.key.privateKeyToBlake160(privateKey)
+    const normalizedPrivateKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`
+    const args = hd.key.privateKeyToBlake160(normalizedPrivateKey)
     const template = TESTNET_CONFIG.SCRIPTS.SECP256K1_BLAKE160!
     const lockScript = {
       codeHash: template.CODE_HASH,
@@ -47,10 +49,14 @@ class CKBServiceClass {
    * Generate a new random private key and its corresponding CKB testnet address
    */
   public generateWallet(): { privateKey: string; address: string } {
-    const { randomBytes } = require('crypto')
-    const privateKey = randomBytes(32).toString('hex')
-    const address = this.generateAddress(privateKey)
-    return { privateKey, address }
+    try {
+      const privateKey = '0x' + crypto.randomBytes(32).toString('hex')
+      const address = this.generateAddress(privateKey)
+      return { privateKey, address }
+    } catch (error) {
+      Logger.error('[CKBService] Failed to generate wallet: %s', error.message)
+      throw new Error(`privateKey must be a hex string!`)
+    }
   }
 
   /**

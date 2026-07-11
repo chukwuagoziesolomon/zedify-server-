@@ -390,9 +390,69 @@ All fields optional:
 
 ## 7. AI Shop Builder
 
+### Available templates
+| Template | Label | Description |
+|---|---|---|
+| `yanga-default` | Default Shop | Basic storefront with essential features |
+| `fashion-store` | Fashion Store | Optimized for fashion/apparel with lookbooks |
+| `digital-goods` | Digital Goods | For digital products and online services |
+| `service-booking` | Service Booking | For service-based businesses |
+| `ai-custom` | AI Custom | Fully AI-generated custom storefront |
+
+Each template has different `features`. See `GET /api/user/shop` response for the `features` object.
+
+---
+
+### List all shops
+**`GET /api/user/shops`** 🔒
+
+Returns all shops for the logged-in user.
+
+**Response 200:**
+```json
+{
+  "error": false,
+  "message": "Shops retrieved",
+  "result": [
+    {
+      "id": "uuid",
+      "business_name": "Adaeze Fabrics",
+      "subdomain": "adaeze-fabrics",
+      "shop_url": "https://adaeze-fabrics.yourdomain.com",
+      "status": "published",
+      "currency": "NGN",
+      "shop_type": "default",
+      "template": "yanga-default",
+      "features": {
+        "allow_product_images": true,
+        "allow_product_variants": true,
+        "allow_product_categories": true,
+        "allow_banner": true,
+        "allow_logo": true,
+        "allow_ai_chat": false,
+        "max_products": 50,
+        "max_images_per_product": 5,
+        "allowed_product_types": ["physical", "digital"],
+        "allow_pay_on_delivery": true,
+        "allowed_currency_ids": []
+      },
+      "customization_access": { ... },
+      "payment_gateway": { ... },
+      "preview": { ... },
+      "created_at": "2026-06-14T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
 ### Get shop
 **`GET /api/user/shop`** 🔒
 
+Query: `shop_id?` — if provided, returns that specific shop; otherwise returns the first shop.
+
+**Response 200:**
 ```json
 {
   "result": {
@@ -408,14 +468,213 @@ All fields optional:
       "accentColor": "#D4AF37",
       "fontFamily": "Inter",
       "layout": "grid",
-      "heroText": "Welcome to Adaeze Fabrics",
-      "heroSubtext": "Premium Ankara fashion"
+      "template": "yanga-default"
     },
     "status": "draft",
     "currency": "NGN",
+    "shop_type": "default",
+    "template": "yanga-default",
+    "features": {
+      "allow_product_images": true,
+      "allow_product_variants": true,
+      "allow_product_categories": true,
+      "allow_banner": true,
+      "allow_logo": true,
+      "allow_ai_chat": false,
+      "max_products": 50,
+      "max_images_per_product": 5,
+      "allowed_product_types": ["physical", "digital"],
+      "allow_pay_on_delivery": true,
+      "allowed_currency_ids": []
+    },
     "created_at": "2026-06-14T10:00:00.000Z"
   }
 }
+```
+
+Returns `result: null` if the user has no shop yet.
+
+---
+
+### Create shop
+**`POST /api/user/shop`** 🔒
+
+```json
+{
+  "business_name": "Adaeze Fabrics",
+  "subdomain": "adaeze-fabrics",
+  "description": "Premium Ankara fashion",
+  "currency": "NGN",
+  "template": "yanga-default"
+}
+```
+
+> `subdomain` becomes the URL prefix. Only lowercase letters, numbers, and hyphens allowed. Must be globally unique.
+> `template` is optional; defaults to `yanga-default`. Use `ai-custom` for AI-generated shops.
+
+---
+
+### Update shop
+**`PUT /api/user/shop`** 🔒
+
+```json
+{
+  "business_name": "New Name",
+  "description": "Updated description",
+  "status": "published",
+  "features": {
+    "max_products": 100,
+    "allow_product_categories": true
+  },
+  "theme_config": {
+    "primaryColor": "#E84C3D",
+    "accentColor": "#D4AF37"
+  }
+}
+```
+
+Fields: `business_name`, `description`, `currency`, `status` (`draft` | `published`), `features` (partial update), `theme_config`, `pages_config`. All optional.
+
+---
+
+### Upload shop logo
+**`POST /api/user/shop/logo`** 🔒 — `multipart/form-data`
+
+| Field | Constraint |
+|---|---|
+| `logo` | jpg/jpeg/png/webp, max 5MB |
+
+**Response:**
+```json
+{ "error": false, "message": "Logo uploaded", "data": { "logo_url": "https://res.cloudinary.com/..." } }
+```
+
+Stored in Cloudinary under `wt-payments/shop-logo-{shop_unique_id}`.
+
+---
+
+### Upload shop banner
+**`POST /api/user/shop/banner`** 🔒 — `multipart/form-data`
+
+| Field | Constraint |
+|---|---|
+| `banner` | jpg/jpeg/png/webp, max 10MB |
+
+**Response:**
+```json
+{ "error": false, "message": "Banner uploaded", "data": { "banner_url": "https://res.cloudinary.com/..." } }
+```
+
+Stored in Cloudinary under `wt-payments/shop-banner-{shop_unique_id}`.
+
+---
+
+### Chat with AI agent (standard)
+**`POST /api/user/shop/ai/chat`** 🔒
+
+Waits for the full AI response before returning. Use this for simple integrations or server-side calls. For animated real-time output use the streaming endpoint below.
+
+```json
+{ "message": "Make my store look modern with dark blue and gold colors" }
+```
+
+**Response:**
+```json
+{
+  "error": false,
+  "message": "AI response",
+  "data": {
+    "reply": "I've updated your theme with a dark navy (#1A1F3A) primary color and gold (#D4AF37) accents...",
+    "action": {
+      "action": "update_theme",
+      "theme_config": { "primaryColor": "#1A1F3A", "accentColor": "#D4AF37" }
+    },
+    "conversation_id": "uuid"
+  }
+}
+```
+
+> If `action` is not null and `action.action === "update_theme"`, the theme has already been applied on the backend. Re-fetch `GET /api/user/shop` to get the updated `theme_config`.
+
+---
+
+### Chat with AI agent (streaming) ⚡
+**`POST /api/user/shop/ai/chat/stream`** 🔒
+
+Returns a `text/event-stream` (SSE) response. Tokens are pushed one chunk at a time as the AI generates them — use this for a ChatGPT-style animated chat UI.
+
+**Request:** same body as standard chat
+```json
+{ "message": "Make my store look modern with dark blue and gold colors" }
+```
+
+**SSE event types** (each line is `data: <json>\n\n`):
+
+| `type` | Payload | When |
+|---|---|---|
+| `token` | `{"type":"token","content":"..."}` | AI generates a new token |
+| `action` | `{"type":"action","action":{...}}` | AI applies a theme/config change |
+| `done` | `{"type":"done","conversation_id":"uuid"}` | Response complete |
+| `error` | `{"type":"error","message":"..."}` | Something went wrong |
+
+**Frontend example:**
+```js
+const res = await fetch('/api/user/shop/ai/chat/stream', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  },
+  body: JSON.stringify({ message: 'Make my store look modern and bold' }),
+})
+const reader = res.body.getReader()
+const decoder = new TextDecoder()
+let buffer = ''
+while (true) {
+  const { done, value } = await reader.read()
+  if (done) break
+  buffer += decoder.decode(value, { stream: true })
+  const events = buffer.split('\n\n')
+  buffer = events.pop() || ''
+  for (const event of events) {
+    const data = JSON.parse(event.replace('data: ', ''))
+    if (data.type === 'token') appendToken(data.content)
+    if (data.type === 'action') applyAction(data.action)
+    if (data.type === 'done') onDone(data.conversation_id)
+    if (data.type === 'error') onError(data.message)
+  }
+}
+```
+
+---
+
+### AI chat history
+**`GET /api/user/shop/ai/history`** 🔒
+
+**Response:**
+```json
+{
+  "error": false,
+  "message": "Conversation history",
+  "data": {
+    "messages": [
+      { "role": "user", "content": "Make my store modern" },
+      { "role": "assistant", "content": "I've updated your theme..." }
+    ],
+    "summary_memory": "...",
+    "entity_memory": { ... }
+  }
+}
+```
+
+---
+
+### Reset AI memory
+**`DELETE /api/user/shop/ai/memory`** 🔒
+
+**Response:**
+```json
+{ "error": false, "message": "AI memory cleared" }
 ```
 Returns `result: null` if the user has no shop yet.
 
@@ -615,7 +874,9 @@ Query params: `page`, `limit`, `category`, `active` (`true`/`false`)
 
 ```json
 {
-  "result": {
+  "error": false,
+  "message": "Products retrieved",
+  "data": {
     "data": [
       {
         "uniqueId": "uuid",
@@ -625,10 +886,12 @@ Query params: `page`, `limit`, `category`, `active` (`true`/`false`)
         "images": [{ "url": "https://...", "publicId": "wt-payments/..." }],
         "category": "Fabrics",
         "stock": 50,
-        "isActive": true
+        "trackStock": true,
+        "isActive": true,
+        "variants": { "sizes": ["S", "M", "L"], "colors": ["Red", "Blue"] }
       }
     ],
-    "meta": { "currentPage": 1, "total": 12 }
+    "meta": { "currentPage": 1, "perPage": 20, "total": 12 }
   }
 }
 ```
@@ -646,9 +909,18 @@ Query params: `page`, `limit`, `category`, `active` (`true`/`false`)
   "category": "Fabrics",
   "stock": 50,
   "track_stock": true,
-  "variants": { "sizes": ["S", "M", "L"], "colors": ["Red", "Blue"] }
+  "variants": { "sizes": ["S", "M", "L"], "colors": ["Red", "Blue"] },
+  "product_type": "physical"
 }
 ```
+
+**Validation rules (enforced by shop `features`):**
+- `max_products` — cannot exceed the shop's product limit
+- `allowed_product_types` — `product_type` must be one of the allowed types for the shop
+- `allow_product_categories` — if `false`, `category` must not be provided
+- `allow_product_variants` — if `false`, `variants` must not be provided
+
+Check the shop's `features` via `GET /api/user/shop` before creating products.
 
 ---
 
@@ -671,11 +943,25 @@ Sets `is_active = false`. Product stays in DB.
 
 | Field | Constraint |
 |---|---|
-| `images` (array) | jpg/jpeg/png/webp, max 5MB each, max 5 images |
+| `images` (array) | jpg/jpeg/png/webp, max 5MB each, max 5 per batch |
 
+**Response:**
 ```json
-{ "result": { "images": [{ "url": "https://...", "publicId": "..." }] } }
+{
+  "error": false,
+  "message": "Images uploaded",
+  "data": {
+    "images": [
+      { "url": "https://res.cloudinary.com/...", "publicId": "wt-payments/shop-product-..." }
+    ]
+  }
+}
 ```
+
+Stored in Cloudinary under `wt-payments/shop-product-{product_unique_id}`.
+
+**Validation:**
+- Total images per product cannot exceed `features.max_images_per_product` (default: 5, up to 10 depending on template)
 
 ---
 
@@ -683,6 +969,8 @@ Sets `is_active = false`. Product stays in DB.
 **`DELETE /api/user/shop/products/:productId/images/:publicId`** 🔒
 
 `:publicId` must be URL-encoded.
+
+Deletes from Cloudinary and removes from the product's `images` array.
 
 ---
 
@@ -798,6 +1086,43 @@ Query: `amount` (number), `type` (`crypto` | `fiat`)
 **`GET /api/user/withdrawals/history`** 🔒
 
 Query: `page`, `limit`, `status`
+
+---
+
+### Payout history
+**`GET /api/user/payout/history`** 🔒
+
+Query: `page`, `limit`, `type` (`all` | `crypto` | `fiat`), `status`
+
+```json
+{
+  "success": true,
+  "data": {
+    "data": [
+      {
+        "id": "uuid",
+        "paid_on": "04 Sept. 2025",
+        "method": "Crypto",
+        "crypto_currency": "USDC",
+        "wallet": "usdt.e723648475",
+        "amount": 200,
+        "status": "completed"
+      }
+    ],
+    "meta": {
+      "total": 2,
+      "per_page": 20,
+      "current_page": 1,
+      "last_page": 1
+    }
+  },
+  "summary": {
+    "total_payout": 205,
+    "pending_payout": 105,
+    "current_pending_interval": 20
+  }
+}
+```
 
 ---
 

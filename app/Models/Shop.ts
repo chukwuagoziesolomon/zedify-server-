@@ -1,6 +1,7 @@
 import { DateTime } from 'luxon'
 import { BaseModel, column, hasMany, HasMany } from '@ioc:Adonis/Lucid/Orm'
 import { genRandomUuid } from 'App/helpers/utils'
+import { ShopFeatures } from 'App/Lib/shopFeatures'
 import ShopProduct from './ShopProduct'
 import AiShopConversation from './AiShopConversation'
 
@@ -63,6 +64,9 @@ export default class Shop extends BaseModel {
 
   @column()
   public customizationPaymentReferenceId: string | null
+
+  @column()
+  public features: ShopFeatures | null
 
   @hasMany(() => ShopProduct, { foreignKey: 'shopId', localKey: 'uniqueId' })
   public products: HasMany<typeof ShopProduct>

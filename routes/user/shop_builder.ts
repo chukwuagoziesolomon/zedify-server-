@@ -7,8 +7,11 @@ import Route from '@ioc:Adonis/Core/Route'
 Route.group(() => {
   // ─── Shop CRUD ───────────────────────────────────────────────────────────────
 
-  /** GET /api/user/shop — Get the authenticated user's shop */
+  /** GET /api/user/shop — Get the authenticated user's shop (or first shop if multiple) */
   Route.get('/', 'ShopBuilderController.show')
+
+  /** GET /api/user/shops — List all shops for the authenticated user */
+  Route.get('/all', 'ShopBuilderController.index')
 
   /** POST /api/user/shop — Create a new shop */
   Route.post('/', 'ShopBuilderController.create')

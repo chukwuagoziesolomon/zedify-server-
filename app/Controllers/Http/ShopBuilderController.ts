@@ -8,6 +8,7 @@ import { FileUploadService } from 'App/Services/FileUploadService'
 import Env from '@ioc:Adonis/Core/Env'
 import PaymentLink from 'App/Models/PaymentLink'
 import { PaymentLinkStatus } from 'App/Lib/types'
+import { getDefaultFeatures, getTemplatePreset, ShopFeatures } from 'App/Lib/shopFeatures'
 
 export default class ShopBuilderController extends RolesController {
   private get baseDomain(): string {
@@ -44,11 +45,20 @@ export default class ShopBuilderController extends RolesController {
   /**
    * GET /user/shop
    * Get the authenticated user's shop (or null if none exists yet).
+   * Query: shop_id? — if provided, returns that specific shop; otherwise returns the first/active shop.
    */
-  public async show({ auth, response }: HttpContextContract) {
+  public async show({ auth, request, response }: HttpContextContract) {
     try {
       const uniqueId = this.allowOnlyLoggedInUsers(auth)
-      const shop = await Shop.query().where('userId', uniqueId).first()
+      const shopId = request.input('shop_id')
+
+      let shop: Shop | null = null
+      if (shopId) {
+        shop = await Shop.query().where('uniqueId', shopId).where('userId', uniqueId).first()
+      } else {
+        shop = await Shop.query().where('userId', uniqueId).orderBy('createdAt', 'asc').first()
+      }
+
       if (!shop) {
         return response.ok(formatSuccessMessage('No shop found', null))
       }
@@ -60,16 +70,35 @@ export default class ShopBuilderController extends RolesController {
   }
 
   /**
+   * GET /user/shops
+   * List all shops for the authenticated user.
+   */
+  public async index({ auth, response }: HttpContextContract) {
+    try {
+      const uniqueId = this.allowOnlyLoggedInUsers(auth)
+      const shops = await Shop.query().where('userId', uniqueId).orderBy('createdAt', 'desc')
+
+      const formatted = await Promise.all(
+        shops.map(async (shop) => {
+          const paymentGateway = await this.ensureShopPaymentGateway(shop)
+          return this.formatShop(shop, paymentGateway)
+        })
+      )
+
+      return response.ok(formatSuccessMessage('Shops retrieved', formatted))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
    * POST /user/shop
    * Create a new shop for the authenticated user.
-   * Supports both the newer AI/custom flow and the older template-based flow.
+   * Users can have multiple shops as long as their product categories don't overlap.
    */
   public async create({ auth, request, response }: HttpContextContract) {
     try {
       const uniqueId = this.allowOnlyLoggedInUsers(auth)
-
-      const existing = await Shop.query().where('userId', uniqueId).first()
-      if (existing) throw new Error('You already have a shop. Use PUT /api/user/shop to update it or GET /api/user/shop to view it.')
 
       const payload = this.resolveShopCreationPayload(request.all())
 
@@ -81,6 +110,10 @@ export default class ShopBuilderController extends RolesController {
       const taken = await Shop.query().where('subdomain', cleanSubdomain).first()
       if (taken) throw new Error(`Subdomain "${cleanSubdomain}" is already taken.`)
 
+      const templateKey = payload.template || 'yanga-default'
+      const preset = getTemplatePreset(templateKey)
+      const defaultFeatures = getDefaultFeatures(templateKey)
+
       const shop = await Shop.create({
         uniqueId: genRandomUuid(),
         userId: uniqueId,
@@ -90,19 +123,19 @@ export default class ShopBuilderController extends RolesController {
         currency: payload.currency || 'NGN',
         status: payload.shopType === 'ai_custom' ? 'draft' : 'published',
         shopType: payload.shopType,
-        template: payload.template,
+        template: templateKey,
+        features: payload.features || defaultFeatures,
         customizationAccessPaid: false,
         customizationPaymentReferenceId: payload.customizationPaymentReferenceId,
       })
 
       if (payload.themeConfig) {
         shop.themeConfig = payload.themeConfig
+      } else {
+        shop.themeConfig = { ...preset.defaultTheme, template: templateKey }
       }
       if (payload.pagesConfig) {
         shop.pagesConfig = payload.pagesConfig
-      }
-      if (payload.template) {
-        shop.themeConfig = { ...(shop.themeConfig || {}), template: payload.template }
       }
       await shop.save()
 
@@ -117,21 +150,24 @@ export default class ShopBuilderController extends RolesController {
   /**
    * PUT /user/shop
    * Update shop details.
-   * Body: { business_name?, description?, currency?, status? }
+   * Body: { business_name?, description?, currency?, status?, features?, theme_config?, pages_config? }
    */
   public async update({ auth, request, response }: HttpContextContract) {
     try {
       const uniqueId = this.allowOnlyLoggedInUsers(auth)
       const shop = await Shop.query().where('userId', uniqueId).firstOrFail()
 
-      const { business_name, description, currency, status } = request.only([
-        'business_name', 'description', 'currency', 'status',
+      const { business_name, description, currency, status, features, theme_config, pages_config } = request.only([
+        'business_name', 'description', 'currency', 'status', 'features', 'theme_config', 'pages_config',
       ])
 
       if (business_name) shop.businessName = String(business_name).trim()
       if (description !== undefined) shop.description = description ? String(description).trim() : null
       if (currency) shop.currency = String(currency).toUpperCase()
       if (status && ['draft', 'published'].includes(status)) shop.status = status
+      if (features) shop.features = features as ShopFeatures
+      if (theme_config !== undefined) shop.themeConfig = theme_config
+      if (pages_config !== undefined) shop.pagesConfig = pages_config
 
       await shop.save()
 
@@ -435,6 +471,7 @@ export default class ShopBuilderController extends RolesController {
       primaryCategory: input.primaryCategory ?? input.primary_category ?? null,
       allowPayOnDelivery: input.allowPayOnDelivery ?? input.allow_pay_on_delivery ?? false,
       acceptedCurrencyIds: input.acceptedCurrencyIds ?? input.accepted_currency_ids ?? null,
+      features: input.features ?? null,
     }
   }
 
@@ -500,6 +537,7 @@ export default class ShopBuilderController extends RolesController {
       currency: shop.currency,
       shop_type: shop.shopType,
       template: shop.template,
+      features: shop.features,
       customization_access: {
         required: shop.shopType === 'ai_custom',
         paid: shop.customizationAccessPaid,
