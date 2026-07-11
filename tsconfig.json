@@ -35,6 +35,7 @@
       "adonis5-scheduler",
       "adonis5-swagger"
     ],
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "skipLibCheck": true
   }
 }
