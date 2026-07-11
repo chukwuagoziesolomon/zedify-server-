@@ -4,6 +4,8 @@ import { HasMany } from '@ioc:Adonis/Lucid/Orm'
 import Currency from './Currency'
 import { genRandomUuid } from 'App/helpers/utils'
 
+export type NetworkType = 'evm' | 'ckb'
+
 export default class CryptoNetwork extends BaseModel {
   @column({ isPrimary: true })
   public id: number
@@ -25,6 +27,14 @@ export default class CryptoNetwork extends BaseModel {
 
   @column()
   public chainKey: string
+
+  /** Discriminates routing: 'evm' for all EVM-compatible chains, 'ckb' for Nervos */
+  @column()
+  public networkType: NetworkType
+
+  /** EVM chain ID (e.g. 1=Ethereum, 56=BSC, 137=Polygon). Null for non-EVM. */
+  @column()
+  public chainId: number | null
 
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime

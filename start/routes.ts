@@ -7,6 +7,7 @@ Route.get('/', async () => {
 import '../routes/admin/admin'
 import '../routes/admin/currency'
 import '../routes/admin/crypto_network'
+import '../routes/admin/dashboard'
 
 import '../routes/user/user'
 import '../routes/user/settings_api_key'
@@ -16,10 +17,19 @@ import '../routes/user/settings_payout'
 import '../routes/user/currency'
 import '../routes/user/payment_intent'
 import '../routes/user/transfer'
+import '../routes/user/payment_link'
+import '../routes/user/sse'
+import '../routes/user/withdrawal'
 
 // Webhook routes for payment confirmations
 import '../routes/webhooks'
 import '../routes/webhooks/payout'
+
+// Public payment status routes (for payment widgets — no auth required)
+import '../routes/payment_status'
+
+// Public payment link checkout routes (for customer checkout — no auth required)
+import '../routes/public'
 
 // CKB test routes (temporary)
 import '../routes/test/ckb'

@@ -68,6 +68,8 @@ Route.group(() => {
    */
   Route.post('/', 'PaymentIntentController.create').middleware('auth:user')
 
+  Route.get('/history', 'PaymentIntentController.getTransactionHistory').middleware('auth:user')
+
   /**
    * @swagger
    * /api/user/payment-intent/create-wallet:

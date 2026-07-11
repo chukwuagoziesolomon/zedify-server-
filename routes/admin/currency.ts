@@ -18,10 +18,12 @@ Route.group(() => {
    *       - bearerAuth: []
    *     requestBody:
    *       required: true
+   *       description: Admin asset payload for creating an available crypto/fiat asset. For crypto assets, include the network and image/logo fields.
    *       content:
    *         application/json:
    *           schema:
    *             type: object
+   *             required: [type, name, symbol, logo]
    *             properties:
    *               type:
    *                 type: string
@@ -29,22 +31,30 @@ Route.group(() => {
    *                 example: crypto
    *               name:
    *                 type: string
-   *                 example: USDT TETHER
+   *                 example: USDT Tether
    *               symbol:
    *                 type: string
    *                 example: USDT
    *               logo:
    *                 type: string
-   *                 example: https://example.com/logo.png
+   *                 example: https://res.cloudinary.com/demo/image/upload/usdt.png
    *               cryptoNetworkId:
-   *                 type: integer
-   *                 example: 1
+   *                 type: string
+   *                 description: Required for crypto assets so the asset is linked to its network.
+   *                 example: net_eth_mainnet
    *               contractAddress:
    *                 type: string
    *                 example: 0x55d398326f99059fF775485246999027B3197955
+   *           example:
+   *             type: crypto
+   *             name: USDT Tether
+   *             symbol: USDT
+   *             logo: https://res.cloudinary.com/demo/image/upload/usdt.png
+   *             cryptoNetworkId: net_eth_mainnet
+   *             contractAddress: 0x55d398326f99059fF775485246999027B3197955
    *     responses:
    *       200:
-   *         description: Currency created
+   *         description: Asset created successfully
    *         content:
    *           application/json:
    *             schema:
@@ -53,6 +63,8 @@ Route.group(() => {
    *                 data:
    *                   type: string
    *                   example: Currency created.
+   *             example:
+   *               data: Currency created.
    *       400:
    *         description: Error
    *         content:

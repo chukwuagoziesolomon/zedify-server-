@@ -127,4 +127,9 @@ Route.group(() => {
    */
   Route.patch('/update', 'AuthAdminController.updateLoggedInAdmin')
 
+  // User management by admin
+  Route.get('/users', 'AuthAdminController.listUsers')
+  Route.patch('/users/:userId/verify', 'AuthAdminController.verifyUser')
+  Route.patch('/users/:userId/unverify', 'AuthAdminController.unverifyUser')
+
 }).prefix('/admin/admin-account').middleware('auth:admin')

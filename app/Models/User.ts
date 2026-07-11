@@ -35,7 +35,25 @@ export default class User extends BaseModel {
   public isDeleted: boolean
 
   @column()
+  public isVerified: boolean
+
+  @column()
   public phone: string
+
+  @column()
+  public businessType: 'starter' | 'registered' = 'starter'
+
+  @column()
+  public bvn: string
+
+  @column()
+  public cacNumber: string
+
+  @column()
+  public cacDocuments: any
+
+  @column()
+  public shareholdersApprovalLetter: any
 
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime

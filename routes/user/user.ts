@@ -39,22 +39,56 @@ Route.group(() => {
    *     requestBody:
    *       required: true
    *       content:
-   *         application/json:
+   *         multipart/form-data:
    *           schema:
    *             type: object
+   *             required:
+   *               - email
+   *               - password
+   *               - password_confirmation
+   *               - phone
+   *               - business_name
+   *               - business_type
+   *               - bvn
    *             properties:
    *               email:
    *                 type: string
-   *                 example: test@example.com
+   *                 format: email
+   *                 example: business@example.com
    *               password:
    *                 type: string
-   *                 example: test
+   *                 format: password
+   *                 example: password123
    *               password_confirmation:
    *                 type: string
-   *                 example: test
+   *                 format: password
+   *                 example: password123
+   *               phone:
+   *                 type: string
+   *                 example: "1234567890"
    *               business_name:
    *                 type: string
-   *                 example: test
+   *                 example: My Business
+   *               business_type:
+   *                 type: string
+   *                 enum: [starter, registered]
+   *                 example: registered
+   *               bvn:
+   *                 type: string
+   *                 pattern: '^\d{11}$'
+   *                 example: "12345678901"
+   *               cac_number:
+   *                 type: string
+   *                 example: "RC1234567"
+   *                 description: Required for registered businesses only
+   *               cac_documents:
+   *                 type: string
+   *                 format: binary
+   *                 description: CAC document image (JPEG, PNG, WebP). Required for registered businesses only
+   *               shareholders_approval_letter:
+   *                 type: string
+   *                 format: binary
+   *                 description: Shareholders approval letter (PDF or Word .docx). Required for registered businesses only
    */
   Route.post('/signup', 'AuthUserController.signup')
 

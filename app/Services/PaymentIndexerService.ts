@@ -1,20 +1,27 @@
-import { ethers } from 'ethers'
+import { createHmac } from 'crypto'
 import Database from '@ioc:Adonis/Lucid/Database'
 import Logger from '@ioc:Adonis/Core/Logger'
+import Env from '@ioc:Adonis/Core/Env'
 import { DateTime } from 'luxon'
 import PaymentIntent from 'App/Models/PaymentIntent'
 import Wallet from 'App/Models/Wallet'
-import CryptoNetwork from 'App/Models/CryptoNetwork'
 import Currency from 'App/Models/Currency'
+import UserWallet from 'App/Models/UserWallet'
+import BusinessSetting from 'App/Models/BusinessSetting'
 import EmailNotificationService from './EmailNotificationService'
+import EVMService from './EVMService'
+import SettlementService from './SettlementService'
+import SseService from './SseService'
 import { PaymentIntentStatus } from 'App/Lib/types'
 
 interface WebhookPayload {
   txHash: string
   fromAddress: string
   toAddress: string
+  /** Raw token/native amount as a string (in smallest unit, e.g. wei) */
   amount: string
   blockNumber: number
+  /** EVM chain ID — used to validate the correct network */
   chainId: number
 }
 
@@ -29,43 +36,66 @@ export class PaymentIndexerService {
 
       // Find wallet matching the toAddress
       const wallet = await Wallet.query()
-        .where('address', payload.toAddress)
+        .where('walletAddress', payload.toAddress)
         .where('status', 'active')
         .firstOrFail()
 
       // Find payment intent for this wallet
       const paymentIntent = await PaymentIntent.query()
-        .where('walletId', wallet.id)
+        .where('walletId', wallet.uniqueId)
         .whereIn('status', [PaymentIntentStatus.PAYMENT_CREATED, PaymentIntentStatus.AWAITING_CONFIRMATION])
         .firstOrFail()
 
-      // Chain validation (optional - can skip for now)
-      // const cryptoNetwork = await CryptoNetwork.query()
-      //   .where('chainKey', payload.chainId.toString())
-      //   .firstOrFail()
+      if (!paymentIntent.cryptoCurrencyId) {
+        Logger.warn(`[PaymentIndexer] Intent ${paymentIntent.uniqueId} has no crypto currency set`)
+        return
+      }
 
-      // Verify transaction amount matches expected crypto amount
-      const expectedCryptoAmount = paymentIntent.feeInCrypto
-      const receivedAmount = ethers.formatEther(payload.amount)
+      // Load currency + network to get contractAddress and chain details
+      const cryptoCurrency = await Currency.query()
+        .where('uniqueId', paymentIntent.cryptoCurrencyId)
+        .preload('cryptoNetwork')
+        .firstOrFail()
 
-      if (!expectedCryptoAmount || parseFloat(receivedAmount) < expectedCryptoAmount * 0.99) {
-        // Allow 1% tolerance for fee variations
+      const network = cryptoCurrency.cryptoNetwork
+
+      // Only handle EVM networks here
+      if (network.networkType !== 'evm') {
+        Logger.warn(`[PaymentIndexer] Webhook for non-EVM network ${network.name} — skipping`)
+        return
+      }
+
+      // Chain ID validation
+      if (network.chainId && network.chainId !== payload.chainId) {
         Logger.warn(
-          `[PaymentIndexer] Amount mismatch. Expected: ${expectedCryptoAmount}, Received: ${receivedAmount}`
+          `[PaymentIndexer] Chain ID mismatch. Expected ${network.chainId}, got ${payload.chainId}`
         )
         return
       }
 
-      // Update payment intent with received timestamp
+      // Verify transaction on-chain — handles both native and ERC-20
+      const expectedAmount = paymentIntent.feeInCrypto ?? 0
+      const { verified, receivedAmount } = await EVMService.verifyTransaction({
+        txHash: payload.txHash,
+        toAddress: payload.toAddress,
+        expectedAmount,
+        rpcUrl: network.rpcUrl,
+        contractAddress: cryptoCurrency.contractAddress,
+      })
+
+      if (!verified) {
+        Logger.warn(
+          `[PaymentIndexer] Amount mismatch for intent ${paymentIntent.uniqueId}. ` +
+          `Expected: ${expectedAmount}, Received: ${receivedAmount}`
+        )
+        return
+      }
+
       paymentIntent.status = PaymentIntentStatus.AWAITING_CONFIRMATION
       paymentIntent.receivedPaymentAt = DateTime.now()
       await paymentIntent.save()
 
-      Logger.info(
-        `[PaymentIndexer] Payment confirmed for intent ${paymentIntent.uniqueId}`
-      )
-
-      // Trigger downstream processes
+      Logger.info(`[PaymentIndexer] Payment confirmed for intent ${paymentIntent.uniqueId}`)
       await this.onPaymentConfirmed(paymentIntent, wallet, payload.txHash)
     } catch (error) {
       Logger.error(`[PaymentIndexer] Webhook processing failed: ${error}`)
@@ -101,41 +131,45 @@ export class PaymentIndexerService {
   /**
    * Check if payment has been received for a specific intent
    */
-  private async checkPaymentStatus(
-    paymentIntent: PaymentIntent
-  ): Promise<void> {
+  private async checkPaymentStatus(paymentIntent: PaymentIntent): Promise<void> {
     try {
-      if (!paymentIntent.walletId) {
-        return
-      }
+      if (!paymentIntent.walletId || !paymentIntent.cryptoCurrencyId) return
 
-      // Load wallet and network
       const wallet = await Wallet.find(paymentIntent.walletId)
       if (!wallet) {
         Logger.warn(`[PaymentIndexer] Wallet not found for intent ${paymentIntent.uniqueId}`)
         return
       }
 
-      const network = await CryptoNetwork.find(wallet.cryptoNetworkId)
-      if (!network) {
-        Logger.warn(`[PaymentIndexer] Network not found for wallet ${wallet.id}`)
+      const cryptoCurrency = await Currency.query()
+        .where('uniqueId', paymentIntent.cryptoCurrencyId)
+        .preload('cryptoNetwork')
+        .first()
+
+      if (!cryptoCurrency) {
+        Logger.warn(`[PaymentIndexer] Currency not found for intent ${paymentIntent.uniqueId}`)
         return
       }
 
-      // Get RPC provider
-      const provider = new ethers.JsonRpcProvider(network.rpcUrl)
+      const network = cryptoCurrency.cryptoNetwork
 
-      // Get wallet balance
-      const balance = await provider.getBalance(wallet.walletAddress)
-      const balanceInEther = parseFloat(ethers.formatEther(balance))
+      // Only poll EVM networks; CKB uses its own polling path
+      if (network.networkType !== 'evm') return
 
-      const expectedAmount = paymentIntent.feeInCrypto || 0
+      // Check balance — ERC-20 if contractAddress is set, otherwise native
+      const { formatted: balanceFormatted } = await EVMService.getBalance(
+        wallet.walletAddress,
+        network.rpcUrl,
+        cryptoCurrency.contractAddress
+      )
 
-      // If balance meets expected amount, mark as confirmed
-      if (balanceInEther >= expectedAmount * 0.99) {
-        // 1% tolerance
+      const balance = parseFloat(balanceFormatted)
+      const expectedAmount = paymentIntent.feeInCrypto ?? 0
+
+      if (balance >= expectedAmount * 0.99) {
         Logger.info(
-          `[PaymentIndexer] Found payment for intent ${paymentIntent.uniqueId} on ${network.name}`
+          `[PaymentIndexer] Found payment for intent ${paymentIntent.uniqueId} on ${network.name}. ` +
+          `Balance: ${balanceFormatted}`
         )
 
         paymentIntent.status = PaymentIntentStatus.AWAITING_CONFIRMATION
@@ -177,8 +211,11 @@ export class PaymentIndexerService {
         // Send email notifications (after transaction commits)
         await this.sendEmailNotifications(paymentIntent, txHash)
 
-        // Schedule settlement (flush funds to master wallet)
-        await this.scheduleSettlement(wallet)
+        // Flush funds from child wallet to master wallet
+        await this.scheduleSettlement(wallet, paymentIntent.uniqueId)
+
+        // Push real-time SSE events to the business owner
+        this.emitPaymentConfirmedSSE(paymentIntent).catch(() => {})
 
         Logger.info(
           `[PaymentIndexer] Payment confirmed and processed for ${paymentIntent.uniqueId}`
@@ -195,29 +232,58 @@ export class PaymentIndexerService {
     }
   }
 
+  /** Push SSE events after a payment is confirmed: transaction.confirmed + wallet.balance_updated */
+  private async emitPaymentConfirmedSSE(paymentIntent: PaymentIntent): Promise<void> {
+    try {
+      // 1. transaction.confirmed
+      SseService.emit(paymentIntent.businessId, {
+        event: 'transaction.confirmed',
+        data: {
+          transaction_id: paymentIntent.uniqueId,
+          reference_id: paymentIntent.businessReferenceId,
+          amount: paymentIntent.fiatAmount,
+          status: paymentIntent.status,
+          completed_at: paymentIntent.completedAt?.toISO() ?? null,
+        },
+      })
+
+      // 2. wallet.balance_updated — sum all active wallets for this business
+      const wallets = await UserWallet.query()
+        .where('userId', paymentIntent.businessId)
+        .where('status', 'active')
+      const totalBalanceUsd = wallets.reduce((s, w) => s + Number(w.balance), 0)
+
+      SseService.emit(paymentIntent.businessId, {
+        event: 'wallet.balance_updated',
+        data: {
+          total_balance_usd: parseFloat(totalBalanceUsd.toFixed(6)),
+          wallets: wallets.map((w) => ({
+            wallet_id: w.uniqueId,
+            balance: Number(w.balance),
+            currency_id: w.currencyId,
+          })),
+        },
+      })
+    } catch (err) {
+      Logger.warn(`[PaymentIndexer] SSE emit failed: ${err}`)
+    }
+  }
+
   /**
    * Send webhook event to business's configured webhook URL
    */
-  private async dispatchWebhook(
-    paymentIntent: PaymentIntent,
-    txHash: string
-  ): Promise<void> {
+  private async dispatchWebhook(paymentIntent: PaymentIntent, txHash: string): Promise<void> {
     try {
-      const business = await Business.findOrFail(paymentIntent.businessId)
-      const setting = await business
-        .related('settings')
+      const setting = await BusinessSetting.query()
+        .where('businessId', paymentIntent.businessId)
         .firstOrFail()
 
-      // Get webhook URL based on environment
-      const environment = process.env.APP_ENV === 'production' ? 'LIVE' : 'TEST'
-      const webhookUrl =
-        environment === 'LIVE'
-          ? setting.liveWebhookUrl
-          : setting.testWebhookUrl
+      const isProduction = Env.get('APP_ENV', 'development') === 'production'
+      const webhookUrl = isProduction ? setting.liveWebhookUrl : setting.testWebhookUrl
 
       if (!webhookUrl) {
         Logger.warn(
-          `[PaymentIndexer] No webhook URL configured for business ${business.id}`
+          `[PaymentIndexer] No webhook URL configured for business ${paymentIntent.businessId}`
         )
         return
       }
@@ -234,50 +300,40 @@ export class PaymentIndexerService {
         },
       }
 
-      // Send webhook with retries
       await this.sendWebhookWithRetry(webhookUrl, payload, 3)
     } catch (error) {
       Logger.warn(`[PaymentIndexer] Failed to dispatch webhook: ${error}`)
-      // Don't fail the entire flow if webhook fails
     }
   }
 
   /**
    * Send webhook with exponential backoff retry
    */
-  private async sendWebhookWithRetry(
-    url: string,
-    payload: any,
-    retries: number = 3
-  ): Promise<void> {
-    for (let i = 0; i < retries; i++) {
+  private async sendWebhookWithRetry(url: string, payload: object, retries: number = 3): Promise<void> {
+    for (let attempt = 0; attempt < retries; attempt++) {
       try {
+        const body = JSON.stringify(payload)
         const response = await fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Webhook-Signature': this.generateSignature(payload),
+            'X-Webhook-Signature': this.generateSignature(body),
           },
-          body: JSON.stringify(payload),
+          body,
         })
 
         if (response.ok) {
-          Logger.info(`[PaymentIndexer] Webhook sent successfully to ${url}`)
+          Logger.info(`[PaymentIndexer] Webhook delivered to ${url}`)
           return
         }
 
         throw new Error(`HTTP ${response.status}`)
       } catch (error) {
-        if (i === retries - 1) {
-          Logger.error(
-            `[PaymentIndexer] Webhook failed after ${retries} retries: ${error}`
-          )
+        if (attempt === retries - 1) {
+          Logger.error(`[PaymentIndexer] Webhook failed after ${retries} attempts: ${error}`)
           throw error
         }
-
-        // Exponential backoff: 1s, 2s, 4s
-        const delay = Math.pow(2, i) * 1000
-        await new Promise((resolve) => setTimeout(resolve, delay))
+        await new Promise((resolve) => setTimeout(resolve, Math.pow(2, attempt) * 1000))
       }
     }
   }
@@ -285,12 +341,10 @@ export class PaymentIndexerService {
   /**
    * Schedule settlement job to flush funds to master wallet
    */
-  private async scheduleSettlement(wallet: Wallet): Promise<void> {
-    // TODO: Queue a settlement job (e.g., Bull Queue, Bree, or database-backed scheduler)
-    // For now, just log intent
-    Logger.info(
-      `[PaymentIndexer] Scheduled settlement for wallet ${wallet.id}`
-    )
+  private async scheduleSettlement(wallet: Wallet, paymentIntentId: string): Promise<void> {
+    SettlementService.settleWallet(wallet.uniqueId, paymentIntentId).catch((err) => {
+      Logger.error(`[PaymentIndexer] Settlement error for wallet ${wallet.uniqueId}: ${err}`)
+    })
   }
 
   /**
@@ -346,24 +400,16 @@ export class PaymentIndexerService {
    * Validate webhook signature
    * Used to verify that webhooks are from trusted sources
    */
-  validateWebhookSignature(signature: string, payload: string): boolean {
-    const crypto = require('crypto')
-    const secret = process.env.WEBHOOK_SECRET || 'default-secret'
-    const hmac = crypto.createHmac('sha256', secret)
-    hmac.update(payload)
-    const expectedSignature = hmac.digest('hex')
-    return signature === expectedSignature
+  /** Verify an inbound webhook signature (constant-time comparison). */
+  validateWebhookSignature(signature: string, rawBody: string): boolean {
+    const expected = this.generateSignature(rawBody)
+    return signature.length === expected.length && signature === expected
   }
 
-  /**
-   * Generate HMAC signature for webhook verification
-   */
-  private generateSignature(payload: any): string {
-    const crypto = require('crypto')
-    const secret = process.env.WEBHOOK_SECRET || 'default-secret'
-    const hmac = crypto.createHmac('sha256', secret)
-    hmac.update(JSON.stringify(payload))
-    return hmac.digest('hex')
+  /** Generate HMAC-SHA256 signature for a webhook body string. */
+  private generateSignature(body: string): string {
+    const secret = Env.get('WEBHOOK_SECRET', 'change-me-in-production')
+    return createHmac('sha256', secret).update(body).digest('hex')
   }
 }
 

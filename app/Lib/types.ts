@@ -40,3 +40,8 @@ export enum BusinessCurrencyStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive',
 }
+
+export enum PaymentLinkStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+}

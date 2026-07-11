@@ -6,6 +6,16 @@ export function genRandomUuid() {
   return String(uuidv4()).toLowerCase()
 }
 
+/** Generates a short random slug like "pl_a1b2c3d4e5" */
+export function genPaymentLinkSlug(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  let result = 'pl_'
+  for (let i = 0; i < 10; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return result
+}
+
 export function formatErrorMessage(error: any) {
   let data: string;
   let code: number;

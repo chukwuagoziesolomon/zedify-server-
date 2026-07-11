@@ -1,5 +1,6 @@
 import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
 import Admin from "App/Models/Admin";
+import User from 'App/Models/User';
 import Hash from '@ioc:Adonis/Core/Hash'
 import { schema, rules } from '@ioc:Adonis/Core/Validator'
 import { formatErrorMessage, formatSuccessMessage } from 'App/helpers/utils';
@@ -180,6 +181,66 @@ export default class AuthAdminController {
             response.status(200).json(await formatSuccessMessage('Password updated successfully.', null));
         } catch (error) {
             response.status(400).json(await formatErrorMessage(error));
+        }
+    }
+
+    // GET /api/admin/users  — list all users
+    public async listUsers({ auth, response }: HttpContextContract) {
+        try {
+            const admin = auth.use('admin').user
+            if (!admin) throw new Error('Authentication error!')
+
+            const users = await User.query()
+                .where('is_deleted', false)
+                .orderBy('created_at', 'desc')
+                .select(['unique_id', 'first_name', 'last_name', 'business_name', 'email', 'phone',
+                    'business_type', 'is_blocked', 'is_verified', 'created_at'])
+
+            return response.status(200).json(formatSuccessMessage('Users retrieved successfully', users))
+        } catch (error) {
+            return response.status(400).json(await formatErrorMessage(error))
+        }
+    }
+
+    // PATCH /api/admin/users/:userId/verify  — mark user as verified
+    public async verifyUser({ auth, response, params }: HttpContextContract) {
+        try {
+            const admin = auth.use('admin').user
+            if (!admin) throw new Error('Authentication error!')
+
+            const user = await User.query().where('unique_id', params.userId).first()
+            if (!user) throw new Error('User not found!')
+
+            user.isVerified = true
+            await user.save()
+
+            return response.status(200).json(formatSuccessMessage('User verified successfully', {
+                user_id: user.uniqueId,
+                is_verified: user.isVerified,
+            }))
+        } catch (error) {
+            return response.status(400).json(await formatErrorMessage(error))
+        }
+    }
+
+    // PATCH /api/admin/users/:userId/unverify  — revoke verification
+    public async unverifyUser({ auth, response, params }: HttpContextContract) {
+        try {
+            const admin = auth.use('admin').user
+            if (!admin) throw new Error('Authentication error!')
+
+            const user = await User.query().where('unique_id', params.userId).first()
+            if (!user) throw new Error('User not found!')
+
+            user.isVerified = false
+            await user.save()
+
+            return response.status(200).json(formatSuccessMessage('User verification revoked', {
+                user_id: user.uniqueId,
+                is_verified: user.isVerified,
+            }))
+        } catch (error) {
+            return response.status(400).json(await formatErrorMessage(error))
         }
     }
 

@@ -11,18 +11,24 @@ export default class PaymentWebhookController {
   /**
    * Handle incoming webhook events from third-party payment indexers
    * POST /api/webhooks/payment
+   *
+   * Validates the X-Webhook-Signature header before processing.
    */
   async handlePaymentEvent({ request, response }: HttpContextContract) {
     try {
+      // Verify HMAC signature — protects against forged/replayed events
+      const signature = request.header('x-webhook-signature') ?? ''
+      const rawBody = request.raw() ?? ''
+
+      if (!PaymentIndexerService.validateWebhookSignature(signature, rawBody)) {
+        Logger.warn('[PaymentWebhook] Invalid webhook signature — request rejected')
+        return response.status(401).json({ success: false, message: 'Invalid signature' })
+      }
+
       const payload = request.all()
+      Logger.info('[PaymentWebhook] Received authenticated webhook event')
 
-      Logger.info(
-        `[PaymentWebhook] Received event from webhook`
-      )
-
-      // Process the webhook payment
-      // Parse the webhook payload based on source
-      const paymentEvent = this.parseWebhookPayload(payload) 
+      const paymentEvent = this.parseWebhookPayload(payload)
 
       if (!paymentEvent) {
         Logger.warn('[PaymentWebhook] Could not parse webhook payload')
@@ -32,26 +38,22 @@ export default class PaymentWebhookController {
         })
       }
 
-      // Process the payment event asynchronously
-      // Don't wait for completion - return 200 immediately
-      PaymentIndexerService.handleWebhookEvent(paymentEvent).catch(
-        (error) => {
-          Logger.error(`[PaymentWebhook] Error processing payment: ${error}`)
-        }
-      )
+      // Process asynchronously — return 200 immediately to prevent indexer retries
+      PaymentIndexerService.handleWebhookEvent(paymentEvent).catch((error) => {
+        Logger.error(`[PaymentWebhook] Error processing payment: ${error}`)
+      })
 
-      // Return 200 OK immediately to prevent retry loops
       return response.status(200).json({
         success: true,
         message: 'Webhook received',
-        txHash: paymentEvent?.txHash || 'unknown',
+        txHash: paymentEvent.txHash,
       })
     } catch (error) {
       Logger.error(`[PaymentWebhook] Webhook processing failed: ${error}`)
       return response.status(400).json({
         success: false,
         message: 'Failed to process webhook',
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       })
     }
   }
@@ -78,7 +80,7 @@ export default class PaymentWebhookController {
       return response.status(500).json({
         success: false,
         message: 'Polling failed',
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       })
     }
   }

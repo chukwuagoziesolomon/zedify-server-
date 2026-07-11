@@ -8,6 +8,7 @@ import { NotificationService } from 'App/Lib/notification/notification'
 import Admin from 'App/Models/Admin';
 import SignupValidator from 'App/Validators/SignupValidator';
 import BusinessSetting from 'App/Models/BusinessSetting'
+import { FileUploadService } from 'App/Services/FileUploadService'
 
 const jwtConstants = {
   secret: Env.get('JWT_KEY'),
@@ -48,27 +49,77 @@ export default class AuthUserController {
   }
 
   public async signup({ request, response }: HttpContextContract) {
+    const fileService = new FileUploadService()
+    const uploadedFiles: string[] = [] // Track files for cleanup on error
+
     try {
       const payload = await request.validate(SignupValidator)
 
+      // Validate registered business requirements
+      if (payload.business_type === 'registered') {
+        if (!payload.cac_number) {
+          throw new Error('CAC number is required for registered businesses')
+        }
+
+        const cacFilesFromRequest = request.files('cac_documents')
+        const letterFileFromRequest = request.file('shareholders_approval_letter')
+
+        if ((!cacFilesFromRequest || cacFilesFromRequest.length === 0) && !letterFileFromRequest) {
+          throw new Error('CAC documents and shareholders approval letter are required for registered businesses')
+        }
+      }
+
+      // Create user first
       let result = await User.create({
         email: payload.email,
         password: payload.password,
-        phone: payload.phone || undefined,
+        phone: payload.phone,
         businessName: payload.business_name,
-      });
+        businessType: payload.business_type,
+        bvn: payload.bvn,
+        cacNumber: payload.business_type === 'registered' ? payload.cac_number : null,
+      })
 
-      if (result !== null) {
-        // Create business settings for the new user
-        await BusinessSetting.create({
-          businessId: result.uniqueId,
-        })
-        response.status(200).json(await formatSuccessMessage("User created!", result));
-      } else {
-        throw new Error("Action failed!");
+      // Upload files for registered businesses
+      let cacDocuments: any[] = []
+      let shareholdersLetter: any = null
+
+      if (payload.business_type === 'registered') {
+        // Upload CAC documents
+        const cacFilesFromRequest = request.files('cac_documents') || []
+        if (cacFilesFromRequest.length > 0) {
+          const uploadedCACDocs = await fileService.uploadCACDocuments(cacFilesFromRequest, result.uniqueId)
+          cacDocuments.push(...uploadedCACDocs)
+          uploadedFiles.push(...uploadedCACDocs.map((item) => item.path))
+        }
+
+        // Upload shareholders approval letter
+        const letterFileFromRequest = request.file('shareholders_approval_letter')
+        if (letterFileFromRequest) {
+          shareholdersLetter = await fileService.uploadShareholdersLetter(letterFileFromRequest, result.uniqueId)
+          uploadedFiles.push(shareholdersLetter.path)
+        }
+
+        // Update user with file information
+        result = await result.merge({
+          cacDocuments: JSON.stringify(cacDocuments),
+          shareholdersApprovalLetter: JSON.stringify(shareholdersLetter),
+        }).save()
       }
 
+      // Create business settings for the new user
+      await BusinessSetting.create({
+        businessId: result.uniqueId,
+      })
+
+      response.status(200).json(await formatSuccessMessage("User created!", result))
+
     } catch (error) {
+      // Clean up uploaded files on error
+      if (uploadedFiles.length > 0) {
+        const fileService = new FileUploadService()
+        await fileService.deleteFiles(uploadedFiles)
+      }
       response.status(400).json(await formatErrorMessage(error))
     }
   }
@@ -79,9 +130,20 @@ export default class AuthUserController {
       const email = request.input('email')
       const password = request.input('password')
 
+      const user = await User.findBy('email', email)
+
+      if (!user) {
+        throw new Error('Invalid email or password')
+      }
+
+      if (user.isBlocked || user.isDeleted) {
+        throw new Error('This account is inactive')
+      }
+
       const token = await auth.use('user').attempt(email, password, {
-        expiresIn: '12 hrs'  // 12 hrs
+        expiresIn: '5 mins'
       })
+
       response.status(200).json(await formatSuccessMessage("Login successful", token))
     } catch (error) {
       console.error(error)

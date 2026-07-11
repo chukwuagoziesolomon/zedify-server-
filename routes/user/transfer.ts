@@ -13,10 +13,12 @@ Route.group(() => {
 
   // Wallet management
   Route.get('/wallets', 'Http/TransferController.getWallets')
+  Route.get('/wallet/balance', 'Http/TransferController.getWalletBalance')
   Route.get('/wallets/:id', 'Http/TransferController.getWallet')
 
   // Transfer operations
   Route.get('/transfers', 'Http/TransferController.getTransfers')
+  Route.get('/withdrawals/history', 'Http/TransferController.getWithdrawalHistory')
   Route.get('/transfers/:id', 'Http/TransferController.getTransfer')
   Route.post('/transfer/initiate', 'Http/TransferController.initiateTransfer')
   Route.post('/transfer/:id/cancel', 'Http/TransferController.cancelTransfer')

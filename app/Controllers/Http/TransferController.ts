@@ -4,6 +4,8 @@ import Transfer from 'App/Models/Transfer'
 import UserWallet from 'App/Models/UserWallet'
 import TransferService from 'App/Services/TransferService'
 import ConversionService from 'App/Services/ConversionService'
+import Currency from 'App/Models/Currency'
+import SseService from 'App/Services/SseService'
 
 /**
  * TransferController
@@ -45,7 +47,39 @@ export default class TransferController {
       return response.internalServerError({
         success: false,
         message: 'Failed to retrieve transfers',
-        error: error.message,
+        error: (error as any).message,
+      })
+    }
+  }
+
+  /**
+   * GET /api/user/withdrawals/history
+   * Get withdrawal history for the logged-in user.
+   */
+  async getWithdrawalHistory({ auth, request, response }: HttpContextContract) {
+    try {
+      const page = Number(request.input('page', 1)) || 1
+      const limit = Number(request.input('limit', 20)) || 20
+      const status = request.input('status')
+
+      const query = Transfer.query().where('senderUserId', auth.user!.id)
+
+      if (status && ['pending', 'processing', 'completed', 'failed', 'cancelled'].includes(String(status))) {
+        query.where('status', String(status))
+      }
+
+      const withdrawals = await query.orderBy('createdAt', 'desc').paginate(page, limit)
+
+      return response.ok({
+        success: true,
+        data: withdrawals,
+      })
+    } catch (error) {
+      Logger.error(`[TransferController] Get withdrawal history failed: ${error}`)
+      return response.internalServerError({
+        success: false,
+        message: 'Failed to retrieve withdrawal history',
+        error: (error as any).message,
       })
     }
   }
@@ -79,7 +113,7 @@ export default class TransferController {
       return response.internalServerError({
         success: false,
         message: 'Failed to retrieve transfer',
-        error: error.message,
+        error: (error as any).message,
       })
     }
   }
@@ -108,7 +142,7 @@ export default class TransferController {
       return response.internalServerError({
         success: false,
         message: 'Failed to get exchange rate',
-        error: error.message,
+        error: (error as any).message,
       })
     }
   }
@@ -155,7 +189,7 @@ export default class TransferController {
       return response.internalServerError({
         success: false,
         message: 'Failed to get conversion quote',
-        error: error.message,
+        error: (error as any).message,
       })
     }
   }
@@ -272,6 +306,17 @@ export default class TransferController {
         purpose,
       })
 
+      // Emit SSE: withdrawal.created
+      SseService.emit(String(auth.user!.id), {
+        event: 'withdrawal.created',
+        data: {
+          transfer_id: (result as any)?.uniqueId ?? null,
+          usdt_amount: usdtAmount,
+          recipient_type: recipientType,
+          status: 'pending',
+        },
+      })
+
       return response.created({
         success: true,
         data: result,
@@ -281,8 +326,8 @@ export default class TransferController {
       Logger.error(`[TransferController] Initiate transfer failed: ${error}`)
       return response.badRequest({
         success: false,
-        message: error.message || 'Failed to initiate transfer',
-        error: error.message,
+        message: (error as any).message || 'Failed to initiate transfer',
+        error: (error as any).message,
       })
     }
   }
@@ -332,8 +377,8 @@ export default class TransferController {
       Logger.error(`[TransferController] Cancel transfer failed: ${error}`)
       return response.badRequest({
         success: false,
-        message: error.message || 'Failed to cancel transfer',
-        error: error.message,
+        message: (error as any).message || 'Failed to cancel transfer',
+        error: (error as any).message,
       })
     }
   }
@@ -362,7 +407,7 @@ export default class TransferController {
       return response.internalServerError({
         success: false,
         message: 'Failed to retrieve wallets',
-        error: error.message,
+        error: (error as any).message,
       })
     }
   }
@@ -400,7 +445,90 @@ export default class TransferController {
       return response.internalServerError({
         success: false,
         message: 'Failed to retrieve wallet',
-        error: error.message,
+        error: (error as any).message,
+      })
+    }
+  }
+
+  /**
+   * GET /api/user/wallet/balance
+   * Returns the total wallet balance across all active wallets,
+   * plus a per-wallet breakdown with USD and NGN equivalents.
+   * The balance field is already kept up to date by the payment indexer
+   * whenever a payment is confirmed, so polling this endpoint every
+   * 15–30 seconds gives the frontend a "near real-time" view without
+   * needing WebSockets.
+   */
+  async getWalletBalance({ auth, response }: HttpContextContract) {
+    try {
+      const wallets = await UserWallet.query()
+        .where('userId', auth.user!.id)
+        .where('status', 'active')
+        .preload('cryptoNetwork')
+        .preload('currency')
+
+      const walletBreakdown = await Promise.all(
+        wallets.map(async (w) => {
+          const currency = await Currency.query()
+            .where('uniqueId', w.currencyId)
+            .first()
+
+          const ratePerUsd = Number(currency?.ratePerUsd || 0)
+          const balanceUsd = ratePerUsd > 0 ? Number(w.balance) / ratePerUsd : 0
+
+          let balanceNgn = 0
+          try {
+            const conversion = await ConversionService.convertUsdtToNaira(balanceUsd)
+            balanceNgn = conversion.toAmount
+          } catch (_) {
+            balanceNgn = 0
+          }
+
+          return {
+            wallet_id: w.uniqueId,
+            address: w.walletAddress,
+            balance: Number(w.balance),
+            balance_usd: parseFloat(balanceUsd.toFixed(6)),
+            balance_ngn: parseFloat(balanceNgn.toFixed(2)),
+            total_deposited: Number(w.totalDeposited),
+            total_withdrawn: Number(w.totalWithdrawn),
+            currency: currency
+              ? {
+                  id: currency.uniqueId,
+                  name: currency.name,
+                  symbol: currency.symbol,
+                  logo: currency.logo || null,
+                }
+              : null,
+            network: w.cryptoNetwork
+              ? {
+                  id: w.cryptoNetwork.uniqueId,
+                  name: w.cryptoNetwork.name,
+                  logo: w.cryptoNetwork.logo || null,
+                  is_testnet: Boolean(w.cryptoNetwork.isTestnet),
+                }
+              : null,
+          }
+        })
+      )
+
+      const totalBalanceUsd = walletBreakdown.reduce((s, w) => s + w.balance_usd, 0)
+      const totalBalanceNgn = walletBreakdown.reduce((s, w) => s + w.balance_ngn, 0)
+
+      return response.ok({
+        success: true,
+        data: {
+          total_balance_usd: parseFloat(totalBalanceUsd.toFixed(6)),
+          total_balance_ngn: parseFloat(totalBalanceNgn.toFixed(2)),
+          wallets: walletBreakdown,
+        },
+      })
+    } catch (error) {
+      Logger.error(`[TransferController] Get wallet balance failed: ${error}`)
+      return response.internalServerError({
+        success: false,
+        message: 'Failed to retrieve wallet balance',
+        error: (error as any).message,
       })
     }
   }

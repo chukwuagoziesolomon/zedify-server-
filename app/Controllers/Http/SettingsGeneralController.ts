@@ -5,7 +5,7 @@ import RolesController from './RolesController'
 import SettingsGeneralValidator from 'App/Validators/SettingsGeneralValidator'
 
 export default class SettingsGeneralController extends RolesController {
-  // GET /api/client/settings/general
+  // GET /api/user/settings/general
   public async show({ auth, response }: HttpContextContract) {
     try {
       const userId = this.allowOnlyLoggedInUsers(auth)
@@ -42,6 +42,40 @@ export default class SettingsGeneralController extends RolesController {
         payout_type: businessSetting.payoutType,
       }
       response.status(200).json(formatSuccessMessage('Settings updated successfully', data))
+    } catch (error) {
+      response.status(400).json(await formatErrorMessage(error))
+    }
+  }
+
+  // POST /api/user/settings/switch-environment
+  public async switchEnvironment({ auth, request, response }: HttpContextContract) {
+    try {
+      const userId = this.allowOnlyLoggedInUsers(auth)
+      const user = auth.use('user').user!
+      const { environment } = request.only(['environment'])
+
+      if (!environment || !['LIVE', 'TEST'].includes(String(environment).toUpperCase())) {
+        return response.status(400).json(await formatErrorMessage(new Error('environment must be LIVE or TEST')))
+      }
+
+      const target = String(environment).toUpperCase() as 'LIVE' | 'TEST'
+
+      if (target === 'LIVE' && !user.isVerified) {
+        return response.status(403).json(await formatErrorMessage(
+          new Error('Your account must be verified by an admin before switching to LIVE mode.')
+        ))
+      }
+
+      const businessSetting = await BusinessSetting.query().where('business_id', userId).first()
+      if (!businessSetting) throw new Error('Business settings not found!')
+
+      businessSetting.currentEnvironment = target as any
+      await businessSetting.save()
+
+      return response.status(200).json(formatSuccessMessage(
+        `Switched to ${target} mode successfully`,
+        { current_environment: businessSetting.currentEnvironment }
+      ))
     } catch (error) {
       response.status(400).json(await formatErrorMessage(error))
     }

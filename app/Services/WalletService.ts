@@ -17,6 +17,7 @@ interface CreateChildWalletParams {
 }
 
 const OWNER_EVM_PRIVATE_KEY = Env.get('OWNER_EVM_PRIVATE_KEY', '')
+const MASTER_EVM_ADDRESS = Env.get('MASTER_EVM_ADDRESS', '')
 
 class WalletService {
   /**
@@ -25,11 +26,20 @@ class WalletService {
    */
   public async createChildWallet({ userId, cryptoCurrencyId, refId, sessionDurationMinutes = 60 }: CreateChildWalletParams): Promise<Wallet> {
     return await Database.transaction(async (trx) => {
-      // Fetch crypto currency and its network
       const cryptoCurrency = await Currency.query({ client: trx })
         .where('uniqueId', cryptoCurrencyId)
         .preload('cryptoNetwork')
         .firstOrFail();
+
+      const cryptoNetwork = cryptoCurrency.cryptoNetwork;
+
+      // Non-EVM chains (e.g. CKB) have their own wallet generation path
+      if (cryptoNetwork.networkType !== 'evm') {
+        throw new Error(
+          `Network ${cryptoNetwork.name} (${cryptoNetwork.networkType}) is not an EVM network. ` +
+          `Use the appropriate service for wallet creation.`
+        );
+      }
 
       // Calculate expiration time (session + 1hr)
       const expiresAt = DateTime.now().plus({ minutes: sessionDurationMinutes + 60 });
@@ -107,7 +117,7 @@ class WalletService {
       const deployAddressParam = {
         name: salt,
         enableAutoFlush: true,
-        masterAddress: "0x606bCAE4De681E6145817FB6267636E6795Eec80",
+        masterAddress: MASTER_EVM_ADDRESS,
       };
 
       let result = await walletSdk.deployAddress(deployAddressParam);

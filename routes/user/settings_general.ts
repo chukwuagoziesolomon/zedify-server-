@@ -98,4 +98,5 @@ Route.group(() => {
    *                   type: string
    */
   Route.get('/', 'SettingsGeneralController.show')
+  Route.post('/switch-environment', 'SettingsGeneralController.switchEnvironment')
 }).prefix('/api/user/settings/general').middleware('auth:user')

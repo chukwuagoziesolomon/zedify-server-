@@ -36,4 +36,40 @@ export default Env.rules({
 	EMAIL_PASS: Env.schema.string(),
 
 	JWT_KEY: Env.schema.string(),
+
+	// -------------------------------------------------------------------------
+	// EVM wallet deployment
+	// -------------------------------------------------------------------------
+	/** Private key of the deployer/owner account used by contract-wallet-sdk */
+	OWNER_EVM_PRIVATE_KEY: Env.schema.string(),
+	/** Master wallet address that receives flushed funds from child wallets */
+	MASTER_EVM_ADDRESS: Env.schema.string(),
+
+	// -------------------------------------------------------------------------
+	// Webhook security
+	// -------------------------------------------------------------------------
+	/** HMAC-SHA256 secret for signing / verifying webhook payloads */
+	WEBHOOK_SECRET: Env.schema.string(),
+
+	// -------------------------------------------------------------------------
+	// Application environment (controls live vs test webhook URLs)
+	// -------------------------------------------------------------------------
+	APP_ENV: Env.schema.enum(['development', 'staging', 'production'] as const),
+
+	// -------------------------------------------------------------------------
+	// EVM RPC endpoints (all optional — seeders fall back to public nodes)
+	// -------------------------------------------------------------------------
+	BSC_RPC: Env.schema.string.optional(),
+	BASE_RPC: Env.schema.string.optional(),
+	POLYGON_RPC: Env.schema.string.optional(),
+	OPTIMISM_RPC: Env.schema.string.optional(),
+	ARBITRUM_RPC: Env.schema.string.optional(),
+	ETHEREUM_RPC: Env.schema.string.optional(),
+	SEPOLIA_RPC: Env.schema.string.optional(),
+	BASE_SEPOLIA_RPC: Env.schema.string.optional(),
+	POLYGON_MUMBAI_RPC: Env.schema.string.optional(),
+	ASSETCHAIN_TESTNET_RPC: Env.schema.string.optional(),
+	CKB_TESTNET_RPC: Env.schema.string.optional(),
+
+	CLIENT_URL: Env.schema.string.optional(),
 })
