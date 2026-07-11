@@ -10,6 +10,7 @@ test.group('CORS config', () => {
       header: (name: string) => (name === 'origin' ? 'https://app.example.com' : undefined),
     }
 
+    assert.equal(corsConfig.origin('https://app.example.com' as any), 'https://app.example.com')
     assert.equal(corsConfig.origin(request as any), 'https://app.example.com')
   })
 })

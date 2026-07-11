@@ -16,6 +16,22 @@ const getAllowedOrigins = () => {
   return configuredOrigins.length > 0 ? configuredOrigins : true
 }
 
+const getRequestOrigin = (requestOrOrigin: any) => {
+  if (typeof requestOrOrigin === 'string') {
+    return requestOrOrigin
+  }
+
+  if (requestOrOrigin && typeof requestOrOrigin.header === 'function') {
+    return requestOrOrigin.header('origin')
+  }
+
+  if (requestOrOrigin && requestOrOrigin.headers && typeof requestOrOrigin.headers.origin === 'string') {
+    return requestOrOrigin.headers.origin
+  }
+
+  return undefined
+}
+
 const corsConfig: CorsConfig = {
   /*
   |--------------------------------------------------------------------------
@@ -53,14 +69,14 @@ const corsConfig: CorsConfig = {
   |                     one of the above values.
   |
   */
-  origin: (request) => {
+  origin: (requestOrOrigin) => {
     const allowedOrigins = getAllowedOrigins()
 
     if (allowedOrigins === true) {
       return true
     }
 
-    const requestOrigin = request.header('origin')
+    const requestOrigin = getRequestOrigin(requestOrOrigin)
     if (!requestOrigin) {
       return false
     }
