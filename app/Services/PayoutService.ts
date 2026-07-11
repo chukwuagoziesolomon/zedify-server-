@@ -37,8 +37,6 @@ export interface PayoutResponse {
 class PayoutServiceClass {
   private readonly PAYSTACK_API_KEY = process.env.PAYSTACK_SECRET_KEY
   private readonly PAYSTACK_BASE_URL = 'https://api.paystack.co'
-  private readonly _MONIEPOINT_API_KEY = process.env.MONIEPOINT_API_KEY
-  private readonly _MONIEPOINT_BASE_URL = 'https://api.moniepoint.com'
 
   /**
    * Process payout to bank account
