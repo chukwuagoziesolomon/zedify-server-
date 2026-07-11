@@ -6,6 +6,15 @@
  */
 
 import type { CorsConfig } from '@ioc:Adonis/Core/Cors'
+import Env from '@ioc:Adonis/Core/Env'
+
+const getAllowedOrigins = () => {
+  const configuredOrigins = [process.env.CLIENT_URL, Env.get('CLIENT_URL')]
+    .filter((value): value is string => Boolean(value))
+    .flatMap((value) => value.split(',').map((origin) => origin.trim()).filter(Boolean))
+
+  return configuredOrigins.length > 0 ? configuredOrigins : true
+}
 
 const corsConfig: CorsConfig = {
   /*
@@ -44,7 +53,20 @@ const corsConfig: CorsConfig = {
   |                     one of the above values.
   |
   */
-  origin: true,
+  origin: (request) => {
+    const allowedOrigins = getAllowedOrigins()
+
+    if (allowedOrigins === true) {
+      return true
+    }
+
+    const requestOrigin = request.header('origin')
+    if (!requestOrigin) {
+      return false
+    }
+
+    return allowedOrigins.includes(requestOrigin) ? requestOrigin : false
+  },
 
   /*
   |--------------------------------------------------------------------------
