@@ -8,6 +8,8 @@ import Shop from 'App/Models/Shop'
 import Wallet from 'App/Models/Wallet'
 import Currency from 'App/Models/Currency'
 import UserWallet from 'App/Models/UserWallet'
+import User from 'App/Models/User'
+import UserWalletService from './UserWalletService'
 import EmailNotificationService from './EmailNotificationService'
 import EVMService from './EVMService'
 import SettlementService from './SettlementService'
@@ -240,6 +242,11 @@ export class PaymentIndexerService {
         return
       }
 
+      if (!wallet.walletAddress || wallet.walletAddress.startsWith('placeholder-ckb-')) {
+        Logger.warn(`[PaymentIndexer] Skipping CKB balance check for placeholder address on intent ${paymentIntent.uniqueId}`)
+        return
+      }
+
       await CKBService.initialize()
       const balance = await CKBService.getBalance(wallet.walletAddress)
 
@@ -331,6 +338,9 @@ export class PaymentIndexerService {
         // Unlock AI customization access if this payment was for a custom shop upgrade.
         await this.unlockCustomShopAccess(paymentIntent)
 
+        // Credit business owner's UserWallet with the received amount
+        await this.creditBusinessWallet(paymentIntent)
+
         // Emit webhook to business
         await this.dispatchWebhook(paymentIntent, txHash)
 
@@ -362,6 +372,40 @@ export class PaymentIndexerService {
     }
   }
 
+  private async creditBusinessWallet(paymentIntent: PaymentIntent): Promise<void> {
+    try {
+      if (!paymentIntent.businessId || !paymentIntent.fiatAmount || !paymentIntent.cryptoCurrencyId) {
+        Logger.warn(`[UserWalletService] Cannot credit wallet: missing businessId, fiatAmount, or cryptoCurrencyId for intent ${paymentIntent.uniqueId}`)
+        return
+      }
+
+      const cryptoCurrency = await Currency.query().where('uniqueId', paymentIntent.cryptoCurrencyId).firstOrFail()
+      const usdtAmount = Number(paymentIntent.fiatAmount) / cryptoCurrency.ratePerUsd
+      const creditedAmount = parseFloat(usdtAmount.toFixed(6))
+
+      const creditedWallet = await UserWalletService.creditWallet({
+        userId: Number(paymentIntent.businessId),
+        amount: creditedAmount,
+        cryptoNetworkId: cryptoCurrency.cryptoNetworkId,
+        reference: paymentIntent.uniqueId,
+        description: `Payment received for ${paymentIntent.businessReferenceId}`,
+        metadata: {
+          payment_intent_id: paymentIntent.uniqueId,
+          fiat_amount: Number(paymentIntent.fiatAmount),
+          fiat_currency_id: paymentIntent.fiatCurrencyId,
+          crypto_currency: cryptoCurrency.symbol,
+          tx_hash: null,
+        },
+      })
+
+      if (creditedWallet) {
+        Logger.info(`[UserWalletService] Credited ${creditedAmount} ${cryptoCurrency.symbol} to business ${paymentIntent.businessId}`)
+      }
+    } catch (error) {
+      Logger.error(`[UserWalletService] Failed to credit business wallet for intent ${paymentIntent.uniqueId}: ${error}`)
+    }
+  }
+
   /** Push SSE events after a payment is confirmed: transaction.confirmed + wallet.balance_updated */
   private async emitPaymentConfirmedSSE(paymentIntent: PaymentIntent): Promise<void> {
     try {
@@ -378,9 +422,10 @@ export class PaymentIndexerService {
       })
 
       // 2. wallet.balance_updated — sum all active wallets for this business
-      const wallets = await UserWallet.query()
-        .where('userId', paymentIntent.businessId)
-        .where('status', 'active')
+      const businessUser = await User.query().where('uniqueId', paymentIntent.businessId).first()
+      const wallets = businessUser
+        ? await UserWallet.query().where('userId', businessUser.id).where('status', 'active')
+        : []
       const totalBalanceUsd = wallets.reduce((s, w) => s + Number(w.balance), 0)
 
       SseService.emit(paymentIntent.businessId, {
@@ -449,7 +494,7 @@ export class PaymentIndexerService {
       const notificationData = {
         paymentId: paymentIntent.uniqueId,
         businessReferenceId: paymentIntent.businessReferenceId,
-        fiatAmount: paymentIntent.fiatAmount,
+        fiatAmount: Number(paymentIntent.fiatAmount),
         fiatCurrency: fiatCurrency.symbol,
         cryptoAmount: cryptoAmount,
         cryptoCurrency: currency.symbol,

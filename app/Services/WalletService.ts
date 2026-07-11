@@ -180,13 +180,18 @@ class WalletService {
         await CKBService.initialize()
         ckbAddress = CKBService.generateWallet().address
       } catch (error) {
-        Logger.warn('[WalletService] CKB wallet generation failed, using placeholder: %s', error.message)
+        Logger.error('[WalletService] CKB wallet generation failed: %s', error.message)
+        throw new Error(`Failed to generate CKB wallet: ${error.message}`)
+      }
+
+      if (!ckbAddress) {
+        throw new Error('CKB wallet generation returned empty address')
       }
 
       const wallet = new Wallet()
       wallet.userId = userId
       wallet.type = WalletType.CHILD
-      wallet.walletAddress = ckbAddress || `placeholder-ckb-${Date.now()}`
+      wallet.walletAddress = ckbAddress
       wallet.cryptoNetworkId = cryptoNetwork.uniqueId
       wallet.refId = refId
       wallet.expiresAt = expiresAt
