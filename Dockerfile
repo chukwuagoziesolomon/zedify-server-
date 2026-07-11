@@ -5,7 +5,7 @@ WORKDIR /app
 RUN apk add --no-cache git && corepack enable
 
 COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+RUN yarn install
 
 COPY . .
 RUN node ace build --production --ignore-ts-errors
@@ -20,7 +20,7 @@ COPY --from=builder /app/build ./
 
 ENV NODE_ENV=production
 
-RUN yarn install --production --frozen-lockfile
+RUN yarn install --production
 
 EXPOSE 3335
 
