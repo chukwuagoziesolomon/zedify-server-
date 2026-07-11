@@ -4,6 +4,10 @@ Route.get('/', async () => {
   return { hello: 'world' }
 })
 
+Route.get('/favicon.ico', async ({ response }) => {
+  return response.status(204).send('')
+})
+
 import '../routes/admin/admin'
 import '../routes/admin/currency'
 import '../routes/admin/crypto_network'

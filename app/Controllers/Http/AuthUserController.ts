@@ -4,6 +4,7 @@ import { schema } from '@ioc:Adonis/Core/Validator'
 import { formatErrorMessage, formatSuccessMessage } from 'App/helpers/utils';
 import { createHmac } from "crypto";
 import Env from '@ioc:Adonis/Core/Env'
+import Hash from '@ioc:Adonis/Core/Hash'
 import { NotificationService } from 'App/Lib/notification/notification'
 import Admin from 'App/Models/Admin';
 import SignupValidator from 'App/Validators/SignupValidator';
@@ -101,27 +102,46 @@ export default class AuthUserController {
 
   public async login({ auth, request, response }: HttpContextContract) {
     try {
-      const email = request.input('email')
-      const password = request.input('password')
+      const email = String(request.input('email') ?? '').trim()
+      const password = String(request.input('password') ?? '')
+      const normalizedEmail = email.toLowerCase()
 
-      const user = await User.findBy('email', email)
+      if (!normalizedEmail || !password) {
+        const validationError = new Error('Email and password are required')
+        ;(validationError as any).code = 'E_VALIDATION_FAILURE'
+        throw validationError
+      }
+
+      const user = await User.query()
+        .whereRaw('LOWER(email) = ?', [normalizedEmail])
+        .first()
 
       if (!user) {
-        throw new Error('Invalid email or password')
+        const invalidCredentialsError = new Error('Invalid email or password')
+        ;(invalidCredentialsError as any).code = 'E_INVALID_AUTH_UID'
+        throw invalidCredentialsError
       }
 
       if (user.isBlocked || user.isDeleted) {
         throw new Error('This account is inactive')
       }
 
-      const token = await auth.use('user').attempt(email, password, {
+      const passwordMatches = await Hash.verify(user.password, password)
+      if (!passwordMatches) {
+        const invalidCredentialsError = new Error('Invalid email or password')
+        ;(invalidCredentialsError as any).code = 'E_INVALID_AUTH_PASSWORD'
+        throw invalidCredentialsError
+      }
+
+      const token = await auth.use('user').attempt(user.email, password, {
         expiresIn: '1 hour'
       })
 
       response.status(200).json(await formatSuccessMessage("Login successful", token))
     } catch (error) {
       console.error(error)
-      response.status(400).json(await formatErrorMessage(error))
+      const isAuthError = error && (error.code === 'E_INVALID_AUTH_UID' || error.code === 'E_INVALID_AUTH_PASSWORD' || error.message === 'Invalid email or password')
+      response.status(isAuthError ? 401 : 400).json(await formatErrorMessage(error))
     }
   }
 
