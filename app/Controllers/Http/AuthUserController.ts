@@ -22,32 +22,6 @@ export default class AuthUserController {
   }
 
 
-  private async _validate(request) {
-    const transactionSchema = schema.create({
-      password: schema.string([
-        rules.confirmed(),
-        rules.minLength(4)
-      ]),
-      email: schema.string([
-        rules.email(),
-        rules.unique({ table: 'users', column: 'email' })
-      ]),
-      phone: schema.string([
-        rules.maxLength(15),
-        rules.unique({ table: 'users', column: 'phone' })
-      ]),
-      business_name: schema.string([
-        rules.minLength(2),
-        rules.maxLength(255)
-      ])
-    })
-    const messages = {
-      required: 'The {{ field }} is required.',
-      unique: 'This {{ field }} already exists.'
-    }
-    await request.validate({ schema: transactionSchema, messages })
-  }
-
   public async signup({ request, response }: HttpContextContract) {
     const fileService = new FileUploadService()
     const uploadedFiles: string[] = [] // Track files for cleanup on error
