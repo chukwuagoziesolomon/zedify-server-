@@ -11,8 +11,6 @@ import { PaymentIntentStatus, PaymentLinkStatus, CurrencyType } from 'App/Lib/ty
 import RolesController from './RolesController'
 import BusinessCurrencyController from './BusinessCurrencyController'
 import CurrencyController from './CurrencyController'
-import WalletService from 'App/Services/WalletService'
-import FiberInvoiceService from 'App/Services/FiberInvoiceService'
 
 export default class PaymentLinkController extends RolesController {
   // ─── Merchant endpoints (auth required) ───────────────────────────────────
@@ -365,7 +363,7 @@ export default class PaymentLinkController extends RolesController {
       const resolvedCurrencies = (await Promise.all(
         activeCurrencies.map(async (bc) => Currency.query().where('uniqueId', bc.uniqueId).first())
       )).filter((currency): currency is Currency => Boolean(currency))
-      const preferredCurrency = resolvePreferredCryptoCurrency(resolvedCurrencies, crypto_currency_id)
+      const preferredCurrency = resolvePreferredCryptoCurrency(resolvedCurrencies, crypto_currency_id) as Currency | null
 
       // Find the payment intent
       const intent = await PaymentIntent.query()
@@ -388,9 +386,9 @@ export default class PaymentLinkController extends RolesController {
       const setup = await PaymentSetupService.createPaymentSetup({
         paymentIntent: intent,
         userUniqueId: link.businessId,
-        userIntId: link.businessId as unknown as number,
+        userIntId: parseInt(link.businessId) || 0,
         cryptoCurrency,
-        referenceId,
+        referenceId: reference_id,
       })
 
       return response.ok({

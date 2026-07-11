@@ -8,17 +8,12 @@ import { CurrencyType, PaymentIntentStatus } from 'App/Lib/types'
 import BusinessCurrencyController from './BusinessCurrencyController'
 import CryptoNetwork from 'App/Models/CryptoNetwork'
 import CurrencyController from './CurrencyController'
-import WalletService from 'App/Services/WalletService'
 import Wallet from 'App/Models/Wallet'
 import SseService from 'App/Services/SseService'
-import TransactionService from 'App/Services/TransactionService'
-import { DateTime } from 'luxon'
-import QRCode from 'qrcode'
 import { resolvePreferredCryptoCurrency } from 'App/helpers/cryptoCurrencySelection'
 import PaymentSetupService from 'App/Services/PaymentSetupService'
 
 export default class PaymentIntentController extends RolesController {
-  private walletService: typeof WalletService = WalletService;
 
   // GET /api/user/payment-intent/history
   public async getTransactionHistory({ request, response, auth }: HttpContextContract) {
@@ -207,7 +202,7 @@ export default class PaymentIntentController extends RolesController {
         activeCurrencies.map(async (bc) => Currency.query().where('unique_id', bc.uniqueId).first())
       )).filter((currency): currency is Currency => Boolean(currency))
 
-      const preferredCurrency = resolvePreferredCryptoCurrency(resolvedCurrencies, crypto_currency_id)
+      const preferredCurrency = resolvePreferredCryptoCurrency(resolvedCurrencies, crypto_currency_id) as Currency | null
       const cryptoCurrency = preferredCurrency ?? await Currency.query().where('symbol', crypto_currency_id).first()
       if (!cryptoCurrency) {
         throw new Error('Invalid crypto currency')

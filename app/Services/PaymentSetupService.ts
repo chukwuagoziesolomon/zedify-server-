@@ -69,7 +69,7 @@ class PaymentSetupService {
       const invoiceExpiresAt = DateTime.now().plus({ hours: 1 })
       const fiberInvoice = await FiberInvoiceService.createInvoiceForIntent(
         paymentIntent.uniqueId,
-        userIntId,
+        String(userIntId),
         amountCrypto,
         `Payment for ${paymentIntent.businessReferenceId}`,
         3600
@@ -136,7 +136,7 @@ class PaymentSetupService {
         name: cryptoCurrency.name,
         symbol: cryptoCurrency.symbol,
         logo: cryptoCurrency.logo,
-        amount,
+        amount: amountCrypto,
         network: {
           name: cryptoNetwork.name,
           logo: cryptoNetwork.logo,

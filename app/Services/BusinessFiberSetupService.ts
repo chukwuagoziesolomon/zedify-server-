@@ -1,6 +1,5 @@
 import Logger from '@ioc:Adonis/Core/Logger'
 import Database from '@ioc:Adonis/Lucid/Database'
-import { DateTime } from 'luxon'
 import User from 'App/Models/User'
 import BusinessFiberSetting from 'App/Models/BusinessFiberSetting'
 import BusinessAcceptedSudt from 'App/Models/BusinessAcceptedSudt'
@@ -68,9 +67,6 @@ class BusinessFiberSetupServiceClass {
         throw new Error('Business not found')
       }
 
-      // Initialize Fiber service
-      await FiberService.initialize()
-
       // Get node info to verify connection
       const nodeInfo = await FiberService.getNodeInfo()
       Logger.info(`[FiberSetup] Connected to Fiber node: ${nodeInfo.peerId}`)
@@ -108,12 +104,12 @@ class BusinessFiberSetupServiceClass {
       return {
         id: setting.uniqueId,
         business_id: businessId,
-        channel_id: channel.channelId,
+          channel_id: channel.channelId || '',
         peer_id: nodeInfo.peerId,
         accept_ckb: setting.acceptCkb,
         accept_sudt: setting.acceptSudt,
         min_channel_balance: setting.minChannelBalance,
-        created_at: setting.createdAt.toISO(),
+        created_at: setting.createdAt?.toISO() || new Date().toISOString(),
         status: setting.status,
       }
     } catch (error) {

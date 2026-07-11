@@ -142,7 +142,7 @@ class StablecoinConversionService {
 
       if (!wallet) {
         wallet = new UserWallet()
-        wallet.userId = String(deposit.userId)
+        wallet.userId = Number(deposit.userId)
         wallet.currencyId = String(currency.id)
         wallet.balance = 0
         wallet.status = 'active'

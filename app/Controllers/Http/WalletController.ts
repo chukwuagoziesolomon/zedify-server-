@@ -4,7 +4,6 @@ import RolesController from './RolesController'
 import User from 'App/Models/User'
 import UserWallet from 'App/Models/UserWallet'
 import CryptoNetwork from 'App/Models/CryptoNetwork'
-import Currency from 'App/Models/Currency'
 
 export default class WalletController extends RolesController {
   /**
@@ -27,7 +26,7 @@ export default class WalletController extends RolesController {
         wallet_id: wallet.uniqueId,
         network: wallet.cryptoNetwork?.name || 'Unknown',
         network_unique_id: wallet.cryptoNetwork?.uniqueId,
-        currency: wallet.currency?.code || 'USDT',
+        currency: wallet.currency?.symbol || 'USDT',
         currency_unique_id: wallet.currency?.uniqueId,
         wallet_address: wallet.walletAddress,
         balance: wallet.balance,
@@ -78,7 +77,7 @@ export default class WalletController extends RolesController {
         formatSuccessMessage('Network wallet balance retrieved', {
           wallet_id: wallet.uniqueId,
           network: network.name,
-          currency: wallet.currency?.code || 'USDT',
+          currency: wallet.currency?.symbol || 'USDT',
           wallet_address: wallet.walletAddress,
           balance: wallet.balance,
           total_deposited: wallet.totalDeposited,

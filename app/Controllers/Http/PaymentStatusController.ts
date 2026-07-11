@@ -231,7 +231,7 @@ export default class PaymentStatusController {
       fiat_amount: intent.fiatAmount,
       fiat_currency_id: intent.fiatCurrencyId,
       created_at: intent.createdAt,
-      expires_at: await this.resolveExpiresAt(intent.uniqueId, intent.createdAt?.toISO()),
+      expires_at: await this.resolveExpiresAt(intent.uniqueId, intent.createdAt?.toISO() ?? undefined),
       received_payment_at: intent.receivedPaymentAt ?? null,
       completed_at: intent.completedAt ?? null,
       wallet: walletInfo,

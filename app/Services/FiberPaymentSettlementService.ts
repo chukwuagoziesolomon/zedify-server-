@@ -2,17 +2,14 @@ import Logger from '@ioc:Adonis/Core/Logger'
 import Database from '@ioc:Adonis/Lucid/Database'
 import { DateTime } from 'luxon'
 import FiberInvoice from 'App/Models/FiberInvoice'
-import PaymentIntent from 'App/Models/PaymentIntent'
 import UserWallet from 'App/Models/UserWallet'
 import User from 'App/Models/User'
-import Currency from 'App/Models/Currency'
 import BusinessFiberSetting from 'App/Models/BusinessFiberSetting'
 import SudtService from './SudtService'
 import ConversionService from './ConversionService'
-import TransferService from './TransferService'
 import EmailNotificationService from './EmailNotificationService'
 import SseService from './SseService'
-import { v4 as uuid } from 'uuid'
+import { PaymentIntentStatus } from 'App/Lib/types'
 
 export interface SettlementResult {
   success: boolean
@@ -116,7 +113,7 @@ class FiberPaymentSettlementServiceClass {
       await businessWallet.useTransaction(trx).save()
 
       // Update PaymentIntent status to completed
-      paymentIntent.status = 'completed'
+      paymentIntent.status = PaymentIntentStatus.PAYMENT_COMPLETED
       paymentIntent.completedAt = DateTime.now()
       await paymentIntent.useTransaction(trx).save()
 
@@ -299,7 +296,6 @@ class FiberPaymentSettlementServiceClass {
       .where('status', 'paid')
 
     let totalCkbReceived = 0
-    let totalSudtReceived = 0
     const sudtByType: Record<string, number> = {}
 
     for (const inv of settledInvoices) {

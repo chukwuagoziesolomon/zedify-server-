@@ -7,6 +7,9 @@ export type SseEvent =
   | 'transaction.confirmed'
   | 'withdrawal.created'
   | 'withdrawal.updated'
+  | 'payment.completed'
+  | 'shop.customization_unlocked'
+  | 'wallet.deposit_credited'
 
 export interface SseMessage<T = any> {
   event: SseEvent

@@ -4,7 +4,6 @@ import RolesController from './RolesController'
 import BusinessFiberSetupService from 'App/Services/BusinessFiberSetupService'
 import FiberPaymentSettlementService from 'App/Services/FiberPaymentSettlementService'
 import SudtService from 'App/Services/SudtService'
-import User from 'App/Models/User'
 
 export default class BusinessFiberSettingsController extends RolesController {
   /**

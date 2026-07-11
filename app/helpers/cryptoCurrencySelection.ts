@@ -1,9 +1,9 @@
-import type Currency from 'App/Models/Currency'
-
 interface CryptoCurrencyLike {
   uniqueId: string
   symbol?: string
   name?: string
+  type?: string
+  cryptoNetworkId?: string
   cryptoNetwork?: {
     chainKey?: string
     networkType?: string
