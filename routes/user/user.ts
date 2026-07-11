@@ -10,7 +10,7 @@ import Route from '@ioc:Adonis/Core/Route'
 Route.group(() => {
   /**
    * @swagger
-   * /user/account/login:
+    * /api/user/account/login:
    *   post:
    *     summary: User login
    *     tags: [User]
@@ -32,7 +32,7 @@ Route.group(() => {
 
   /**
    * @swagger
-   * /user/account/signup:
+    * /api/user/account/signup:
    *   post:
    *     summary: User signup
    *     tags: [User]
@@ -94,7 +94,7 @@ Route.group(() => {
 
   /**
    * @swagger
-   * /user/account/forgot-password:
+    * /api/user/account/forgot-password:
    *   post:
    *     summary: Forgot password
    *     tags: [User]
@@ -113,7 +113,7 @@ Route.group(() => {
 
   /**
    * @swagger
-   * /user/account/reset-password:
+    * /api/user/account/reset-password:
    *   post:
    *     summary: Reset password
    *     tags: [User]
@@ -138,7 +138,7 @@ Route.group(() => {
 
   /**
    * @swagger
-   * /user/account/view:
+    * /api/user/account/view:
    *   get:
    *     summary: View logged in user
    *     tags: [User]
@@ -147,7 +147,7 @@ Route.group(() => {
 
   /**
    * @swagger
-   * /user/account/update:
+    * /api/user/account/update:
    *   patch:
    *     summary: Update logged in user
    *     tags: [User]
@@ -156,11 +156,11 @@ Route.group(() => {
 
   /**
    * @swagger
-   * /user/account/logout:
+    * /api/user/account/logout:
    *   post:
    *     summary: Logout user
    *     tags: [User]
    */
   Route.post('/logout', 'AuthUserController.logout').middleware('auth')
 
-}).prefix('/user/account')
+}).prefix('/api/user/account')

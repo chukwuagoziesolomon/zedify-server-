@@ -27,7 +27,7 @@
 ## 1. Authentication
 
 ### Sign Up
-**`POST /user/account/signup`** — `multipart/form-data`
+**`POST /api/user/account/signup`** — `multipart/form-data`
 
 | Field | Type | Required |
 |---|---|---|
@@ -50,7 +50,7 @@
 ---
 
 ### Login
-**`POST /user/account/login`** — `application/json`
+**`POST /api/user/account/login`** — `application/json`
 
 ```json
 { "email": "user@example.com", "password": "yourpassword" }
@@ -79,7 +79,7 @@
 ## 2. Account Info
 
 ### Get account info
-**`GET /user/account-info`** 🔒
+**`GET /api/user/account-info`** 🔒
 
 **Response:**
 ```json
@@ -99,7 +99,7 @@
 ---
 
 ### Update account info
-**`PUT /user/account-info`** 🔒 — `application/json`
+**`PUT /api/user/account-info`** 🔒 — `application/json`
 
 ```json
 {
@@ -113,7 +113,7 @@ All fields optional. Only send what changed.
 ---
 
 ### Upload profile image
-**`POST /user/account-info/profile-image`** 🔒 — `multipart/form-data`
+**`POST /api/user/account-info/profile-image`** 🔒 — `multipart/form-data`
 
 | Field | Type | Constraint |
 |---|---|---|
@@ -689,7 +689,7 @@ Sets `is_active = false`. Product stays in DB.
 ## 9. Payment Intents
 
 ### Get payment history
-**`GET /user/payment-intent/history`** 🔒
+**`GET /api/user/payment-intent/history`** 🔒
 
 Query: `page`, `limit`, `status`
 
@@ -795,7 +795,7 @@ Query: `amount` (number), `type` (`crypto` | `fiat`)
 ---
 
 ### Withdrawal history
-**`GET /user/withdrawals/history`** 🔒
+**`GET /api/user/withdrawals/history`** 🔒
 
 Query: `page`, `limit`, `status`
 
@@ -804,7 +804,7 @@ Query: `page`, `limit`, `status`
 ## 11. Dashboard Stats
 
 ### Stats cards
-**`GET /dashboard/stats`** 🔒
+**`GET /api/dashboard/stats`** 🔒
 
 ```json
 {
@@ -820,14 +820,14 @@ Query: `page`, `limit`, `status`
 ---
 
 ### Payout chart
-**`GET /dashboard/payout-chart`** 🔒
+**`GET /api/dashboard/payout-chart`** 🔒
 
 Returns time-series data for the payout chart.
 
 ---
 
 ### Analytical transactions
-**`GET /dashboard/analytical-transactions`** 🔒
+**`GET /api/dashboard/analytical-transactions`** 🔒
 
 Returns recent transaction list for the analytics section.
 
@@ -835,7 +835,7 @@ Returns recent transaction list for the analytics section.
 
 ## 12. Available Assets
 
-**`GET /available-assets`** — No auth required
+**`GET /api/available-assets`** — No auth required
 
 Returns all supported crypto currencies and networks for the payment widget.
 
@@ -923,7 +923,7 @@ export default api
 
 **Login flow:**
 ```js
-const res = await api.post('/user/account/login', { email, password })
+  const res = await api.post('/api/user/account/login', { email, password })
 localStorage.setItem('wt_token', res.data.result.token)
 ```
 
@@ -931,7 +931,7 @@ localStorage.setItem('wt_token', res.data.result.token)
 ```js
 const form = new FormData()
 form.append('profile_image', file)
-await api.post('/user/account-info/profile-image', form, {
+await api.post('/api/user/account-info/profile-image', form, {
   headers: { 'Content-Type': 'multipart/form-data' },
 })
 ```

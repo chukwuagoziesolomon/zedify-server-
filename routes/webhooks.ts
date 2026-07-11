@@ -6,10 +6,8 @@ import Route from '@ioc:Adonis/Core/Route'
  */
 
 // Health check - public endpoint for service monitoring
-Route.get('/api/webhooks/payment/health', 'Http/PaymentWebhookController.health')
+Route.get('/api/webhooks/payment/health', 'PaymentWebhookController.health')
 
-// Main webhook endpoint - receives payment events from Alchemy, Tenderly, etc.
-Route.post('/api/webhooks/payment', 'Http/PaymentWebhookController.handlePaymentEvent')
+Route.post('/api/webhooks/payment', 'PaymentWebhookController.handlePaymentEvent')
 
-// Manual polling trigger - can be called from a cron job or scheduler
-Route.post('/api/webhooks/payment/poll', 'Http/PaymentWebhookController.pollPayments')
+Route.post('/api/webhooks/payment/poll', 'PaymentWebhookController.pollPayments')

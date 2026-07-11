@@ -8,6 +8,6 @@ import Route from '@ioc:Adonis/Core/Route'
  *     tags: [Admin]
  *     description: Returns confirmed dashboard totals for wallet balance, payouts, and payments processed.
  */
-Route.get('/dashboard/stats', 'DashboardStatsController.stats').middleware('auth:user')
-Route.get('/dashboard/payout-chart', 'DashboardStatsController.payoutChart').middleware('auth:user')
-Route.get('/dashboard/analytical-transactions', 'DashboardStatsController.analyticalTransactions').middleware('auth:user')
+Route.get('/api/dashboard/stats', 'DashboardStatsController.stats').middleware('auth:user')
+Route.get('/api/dashboard/payout-chart', 'DashboardStatsController.payoutChart').middleware('auth:user')
+Route.get('/api/dashboard/analytical-transactions', 'DashboardStatsController.analyticalTransactions').middleware('auth:user')

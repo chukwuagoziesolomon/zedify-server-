@@ -35,7 +35,7 @@ Route.get('/api/storefront/:subdomain', 'ShopBuilderController.storefront')
 Route.get('/api/assets/available', 'AvailableAssetController.index')
 
 /**
- * GET /available-assets
- * Alias for /api/assets/available (used by frontend without /api prefix).
+ * GET /api/available-assets
+ * Alias for /api/assets/available.
  */
-Route.get('/available-assets', 'AvailableAssetController.index')
+Route.get('/api/available-assets', 'AvailableAssetController.index')

@@ -48,7 +48,7 @@ function print(label, data) {
   console.log(`Subdomain: ${SUBDOMAIN}`)
 
   // ── 1. Sign up ──────────────────────────────────────────────────────────────
-  const signup = await post('/user/account/signup', {
+  const signup = await post('/api/user/account/signup', {
     first_name: 'Test',
     last_name: 'User',
     business_name: 'Test Business',
@@ -67,7 +67,7 @@ function print(label, data) {
   }
 
   // ── 2. Login ────────────────────────────────────────────────────────────────
-  const login = await post('/user/account/login', { email: EMAIL, password: PASS })
+  const login = await post('/api/user/account/login', { email: EMAIL, password: PASS })
   print('STEP 2 — LOGIN', login)
   const token = login.body?.data?.token || login.body?.result?.token
   if (!token) {

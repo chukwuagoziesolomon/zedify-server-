@@ -65,11 +65,11 @@ export async function apiFetch(path, options = {}) {
 ### Sign Up
 
 ```
-POST http://localhost:3335/user/account/signup
+POST http://localhost:3335/api/user/account/signup
 ```
 
 ```js
-const res = await fetch(`${API_URL}/user/account/signup`, {
+  const res = await fetch(`${API_URL}/api/user/account/signup`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -92,11 +92,11 @@ const json = await res.json()
 ### Login
 
 ```
-POST http://localhost:3335/user/account/login
+POST http://localhost:3335/api/user/account/login
 ```
 
 ```js
-const res = await fetch(`${API_URL}/user/account/login`, {
+  const res = await fetch(`${API_URL}/api/user/account/login`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ email: 'john@example.com', password: 'Password123!' }),
@@ -905,8 +905,8 @@ Display the wallet address and QR code to the customer. They send the exact cryp
 
 | Screen / Use Case | Method | Endpoint | Auth |
 |---|---|---|---|
-| Sign up | POST | `/user/account/signup` | No |
-| Login | POST | `/user/account/login` | No |
+| Sign up | POST | `/api/user/account/signup` | No |
+| Login | POST | `/api/user/account/login` | No |
 | Get my shop | GET | `/api/user/shop` | Yes |
 | Create shop | POST | `/api/user/shop` | Yes |
 | Update shop | PUT | `/api/user/shop` | Yes |

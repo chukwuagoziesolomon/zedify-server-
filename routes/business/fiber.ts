@@ -13,73 +13,23 @@ Route.group(() => {
    * POST /api/business/fiber/setup
    * Enable Fiber payments for business
    */
-  Route.post('/setup', 'Http/BusinessFiberSettingsController.setup')
+  Route.post('/setup', 'BusinessFiberSettingsController.setup')
 
-  /**
-   * GET /api/business/fiber/setup
-   * Get current Fiber setup and settings
-   */
-  Route.get('/setup', 'Http/BusinessFiberSettingsController.getSetup')
+  Route.get('/setup', 'BusinessFiberSettingsController.getSetup')
 
-  /**
-   * PATCH /api/business/fiber/settlement
-   * Update settlement preferences (auto-convert, schedule, etc.)
-   */
-  Route.patch('/settlement', 'Http/BusinessFiberSettingsController.updateSettlement')
+  Route.patch('/settlement', 'BusinessFiberSettingsController.updateSettlement')
 
-  // ────────────────────────────────────────────────────────────────
-  // SUDT Token Management
-  // ────────────────────────────────────────────────────────────────
+  Route.post('/accept-sudt', 'BusinessFiberSettingsController.acceptSudt')
 
-  /**
-   * POST /api/business/fiber/accept-sudt
-   * Enable a specific SUDT token for business payments
-   * Body: { type_script: "0x..." }
-   */
-  Route.post('/accept-sudt', 'Http/BusinessFiberSettingsController.acceptSudt')
+  Route.delete('/accept-sudt/:typeScript', 'BusinessFiberSettingsController.rejectSudt')
 
-  /**
-   * DELETE /api/business/fiber/accept-sudt/:typeScript
-   * Disable SUDT token for business
-   */
-  Route.delete('/accept-sudt/:typeScript', 'Http/BusinessFiberSettingsController.rejectSudt')
+  Route.get('/accepted-sudt', 'BusinessFiberSettingsController.getAcceptedSudt')
 
-  /**
-   * GET /api/business/fiber/accepted-sudt
-   * List SUDT tokens accepted by this business
-   */
-  Route.get('/accepted-sudt', 'Http/BusinessFiberSettingsController.getAcceptedSudt')
+  Route.get('/available-sudt', 'BusinessFiberSettingsController.getAvailableSudt')
 
-  /**
-   * GET /api/business/fiber/available-sudt
-   * List all available SUDT tokens to accept
-   */
-  Route.get('/available-sudt', 'Http/BusinessFiberSettingsController.getAvailableSudt')
+  Route.get('/payments', 'BusinessFiberSettingsController.getPayments')
 
-  // ────────────────────────────────────────────────────────────────
-  // Payment History & Statistics
-  // ────────────────────────────────────────────────────────────────
+  Route.get('/stats', 'BusinessFiberSettingsController.getStats')
 
-  /**
-   * GET /api/business/fiber/payments
-   * Get payment history
-   * Query: page, limit
-   */
-  Route.get('/payments', 'Http/BusinessFiberSettingsController.getPayments')
-
-  /**
-   * GET /api/business/fiber/stats
-   * Get settlement statistics (total received, converted, etc.)
-   */
-  Route.get('/stats', 'Http/BusinessFiberSettingsController.getStats')
-
-  // ────────────────────────────────────────────────────────────────
-  // Account Management
-  // ────────────────────────────────────────────────────────────────
-
-  /**
-   * POST /api/business/fiber/disable
-   * Disable Fiber payments for business
-   */
-  Route.post('/disable', 'Http/BusinessFiberSettingsController.disableFiber')
+  Route.post('/disable', 'BusinessFiberSettingsController.disableFiber')
 }).prefix('/api/business/fiber').middleware('auth:user')

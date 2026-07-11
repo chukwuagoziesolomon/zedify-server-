@@ -6,22 +6,22 @@ import Route from '@ioc:Adonis/Core/Route'
  */
 Route.group(() => {
   // Get exchange rate (public info, can add rate limiting)
-  Route.get('/transfer/rate', 'Http/TransferController.getExchangeRate')
+  Route.get('/transfer/rate', 'TransferController.getExchangeRate')
 
   // Get conversion quote before transfer
-  Route.post('/transfer/quote', 'Http/TransferController.getConversionQuote')
+  Route.post('/transfer/quote', 'TransferController.getConversionQuote')
 
   // Wallet management
-  Route.get('/wallets', 'Http/TransferController.getWallets')
-  Route.get('/wallet/balance', 'Http/TransferController.getWalletBalance')
-  Route.get('/wallets/:id', 'Http/TransferController.getWallet')
+  Route.get('/wallets', 'TransferController.getWallets')
+  Route.get('/wallet/balance', 'TransferController.getWalletBalance')
+  Route.get('/wallets/:id', 'TransferController.getWallet')
 
   // Transfer operations
-  Route.get('/transfers', 'Http/TransferController.getTransfers')
-  Route.get('/withdrawals/history', 'Http/TransferController.getWithdrawalHistory')
-  Route.get('/transfers/:id', 'Http/TransferController.getTransfer')
-  Route.post('/transfer/initiate', 'Http/TransferController.initiateTransfer')
-  Route.post('/transfer/:id/cancel', 'Http/TransferController.cancelTransfer')
+  Route.get('/transfers', 'TransferController.getTransfers')
+  Route.get('/withdrawals/history', 'TransferController.getWithdrawalHistory')
+  Route.get('/transfers/:id', 'TransferController.getTransfer')
+  Route.post('/transfer/initiate', 'TransferController.initiateTransfer')
+  Route.post('/transfer/:id/cancel', 'TransferController.cancelTransfer')
 })
   .prefix('/api/user')
   .middleware('auth')

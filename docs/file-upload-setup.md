@@ -96,7 +96,7 @@ Instead of using root AWS credentials:
 ### Using cURL (Starter Business)
 
 ```bash
-curl -X POST http://localhost:3333/user/account/signup \
+curl -X POST http://localhost:3333/api/user/account/signup \
   -F "email=user@example.com" \
   -F "password=password123" \
   -F "password_confirmation=password123" \
@@ -109,7 +109,7 @@ curl -X POST http://localhost:3333/user/account/signup \
 ### Using cURL (Registered Business)
 
 ```bash
-curl -X POST http://localhost:3333/user/account/signup \
+curl -X POST http://localhost:3333/api/user/account/signup \
   -F "email=company@example.com" \
   -F "password=password123" \
   -F "password_confirmation=password123" \
@@ -124,7 +124,7 @@ curl -X POST http://localhost:3333/user/account/signup \
 
 ### Using Postman
 
-1. Create a POST request to `{{baseUrl}}/user/account/signup`
+1. Create a POST request to `{{baseUrl}}/api/user/account/signup`
 2. Select **Body** > **form-data**
 3. Add fields:
 

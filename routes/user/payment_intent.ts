@@ -131,7 +131,7 @@ Route.group(() => {
 }).prefix('/api/user/payment-intent')
 
 /**
- * GET /user/payment-intent/history
- * Alias without /api prefix (used by frontend).
+ * GET /api/user/payment-intent/history
+ * Alias for /api/user/payment-intent/history (used by frontend).
  */
-Route.get('/user/payment-intent/history', 'PaymentIntentController.getTransactionHistory').middleware('auth:user')
+Route.get('/api/user/payment-intent/history', 'PaymentIntentController.getTransactionHistory').middleware('auth:user')

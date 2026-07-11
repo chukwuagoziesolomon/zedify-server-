@@ -31,9 +31,9 @@ Route.group(() => {
 }).prefix('/api/user/withdrawal').middleware('auth:user')
 
 /**
- * GET /user/withdrawals/history
+ * GET /api/user/withdrawals/history
  * Paginated withdrawal history for the authenticated user.
  * Query: page, limit, status
  * Shows all withdrawals across all networks (CKB, EVM, Fiat)
  */
-Route.get('/user/withdrawals/history', 'WithdrawalController.history').middleware('auth:user')
+Route.get('/api/user/withdrawals/history', 'WithdrawalController.history').middleware('auth:user')
