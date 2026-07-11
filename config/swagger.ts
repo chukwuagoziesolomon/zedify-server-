@@ -36,7 +36,7 @@ export default {
 			'app/**/*.ts',
 			'docs/swagger/**/*.yml',
 			'start/routes.ts',
-  'routes/*.ts',
+			'routes/**/*.ts',
 		],
 		basePath: '/'
 	},

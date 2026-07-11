@@ -4,5 +4,6 @@ Route.get('/', async () => {
   return { hello: 'world' }
 })
 
-import '../routes/user'
-import '../routes/admin'
+import '../routes/user/user'
+import '../routes/admin/admin'
+import '../routes/admin/currency'

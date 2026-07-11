@@ -8,7 +8,7 @@ export default class extends BaseSchema {
       table.increments('id')
       table.string('unique_id', 255).notNullable().unique()
       table.string('name', 255).notNullable()
-      table.string('symbol', 10).notNullable().unique()
+      table.string('symbol', 10).notNullable()
       table.string('logo', 500).nullable()
       table.integer('crypto_network_id').unsigned().references('id').inTable('crypto_networks').onDelete('CASCADE').nullable()
       table.enum('type', ['fiat', 'crypto']).notNullable()
