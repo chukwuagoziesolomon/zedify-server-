@@ -77,17 +77,16 @@ The shop is now live. Every checkout on that shop goes through WT Payments — s
 
 ### AI Agent Memory Architecture
 
-The AI agent uses **persistent multi-turn memory**. Every conversation is stored in the `ai_shop_conversations` table with full message history, including the model's `reasoning_details` (for Claude). This means:
+The AI agent uses **persistent multi-turn memory**. Every conversation is stored in the `ai_shop_conversations` table with full message history. This means:
 
 - The agent remembers what you discussed last week
 - It knows your current products and prices without you repeating them
-- It continues reasoning from where it left off in previous sessions
+- It picks up the conversation context seamlessly in new sessions
 - The system prompt is dynamically rebuilt on every request with live shop + product data
 
-**Primary model:** `anthropic/claude-haiku-latest` (via OpenRouter, with reasoning enabled)
-**Fallback model:** `meta-llama/llama-3.3-70b-instruct:free` (free tier, no reasoning)
+**Primary model:** `gemini-2.0-flash` (via Google Gemini)
 
-The fallback ensures the feature never goes down even if the primary API quota is exhausted.
+The model is configured via `GEMINI_MODEL` and `GEMINI_API_KEY`.
 
 ### AI Endpoints Summary
 
@@ -307,9 +306,8 @@ The network RPC URL is loaded dynamically from the `crypto_networks` DB table (`
 
 ```env
 # AI Shop Builder
-OPENROUTER_API_KEY=sk-or-...
-OPENROUTER_PRIMARY_MODEL=anthropic/claude-haiku-latest
-OPENROUTER_FALLBACK_MODEL=meta-llama/llama-3.3-70b-instruct:free
+GEMINI_API_KEY=AIza...
+GEMINI_MODEL=gemini-2.0-flash
 SHOP_BASE_DOMAIN=yourdomain.com
 
 # Webhooks
@@ -325,6 +323,6 @@ APP_ENV=production                       # controls LIVE vs TEST webhook URL sel
 |---|---|
 | `shops` | Merchant shop config, subdomain, theme, status |
 | `shop_products` | Product catalog with images, variants, stock |
-| `ai_shop_conversations` | Full AI conversation history per shop (with reasoning_details) |
+| `ai_shop_conversations` | Full AI conversation history per shop |
 | `webhook_logs` | Every webhook delivery attempt, response, and retry |
 | `business_settings.webhook_signing_secret` | Per-merchant HMAC secret (new column) |

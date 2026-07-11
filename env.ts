@@ -74,10 +74,9 @@ export default Env.rules({
 	CLIENT_URL: Env.schema.string.optional(),
 
 	// -------------------------------------------------------------------------
-	// AI Shop Builder (OpenRouter)
+	// AI Shop Builder (Gemini)
 	// -------------------------------------------------------------------------
-	OPENROUTER_API_KEY: Env.schema.string.optional(),
-	OPENROUTER_PRIMARY_MODEL: Env.schema.string.optional(),
-	OPENROUTER_FALLBACK_MODEL: Env.schema.string.optional(),
+	GEMINI_API_KEY: Env.schema.string.optional(),
+	GEMINI_MODEL: Env.schema.string.optional(),
 	SHOP_BASE_DOMAIN: Env.schema.string.optional(),
 })

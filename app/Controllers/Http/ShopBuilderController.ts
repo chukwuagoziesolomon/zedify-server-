@@ -190,7 +190,6 @@ export default class ShopBuilderController extends RolesController {
       const shop = await Shop.query().where('userId', uniqueId).firstOrFail()
 
       const { messages, summaryMemory, entityMemory } = await AiShopBuilderService.getHistory(shop.uniqueId)
-      // Strip reasoning_details from history response (internal use only)
       const clean = messages.map(({ role, content }) => ({ role, content }))
 
       return response.ok(formatSuccessMessage('Conversation history', {

@@ -5,7 +5,6 @@ import { genRandomUuid } from 'App/helpers/utils'
 export interface ConversationMessage {
   role: 'user' | 'assistant' | 'system'
   content: string | null
-  reasoning_details?: any[] // preserved from OpenRouter for multi-turn reasoning
 }
 
 /**
