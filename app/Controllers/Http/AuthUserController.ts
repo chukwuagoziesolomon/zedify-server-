@@ -22,7 +22,7 @@ export default class AuthUserController {
   }
 
 
-  private async validate(request) {
+  private async _validate(request) {
     const transactionSchema = schema.create({
       password: schema.string([
         rules.confirmed(),
@@ -45,7 +45,7 @@ export default class AuthUserController {
       required: 'The {{ field }} is required.',
       unique: 'This {{ field }} already exists.'
     }
-    await request.validate({ schema: transactionSchema, messages });
+    await request.validate({ schema: transactionSchema, messages })
   }
 
   public async signup({ request, response }: HttpContextContract) {
@@ -75,7 +75,7 @@ export default class AuthUserController {
         password: payload.password,
         phone: payload.phone,
         businessName: payload.business_name,
-        businessType: payload.business_type,
+        businessType: payload.business_type as 'starter' | 'registered',
         bvn: payload.bvn,
         cacNumber: payload.business_type === 'registered' ? payload.cac_number : undefined,
       })
