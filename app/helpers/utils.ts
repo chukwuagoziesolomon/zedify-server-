@@ -6,6 +6,42 @@ export function genRandomUuid() {
   return String(uuidv4()).toLowerCase()
 }
 
+export function sanitizeShopUrl(url: string, subdomain: string): string {
+  if (!url || typeof url !== 'string') return url
+
+  const baseDomain = process.env.SHOP_BASE_DOMAIN || ''
+  const host = process.env.HOST || 'localhost'
+  const port = process.env.PORT || '3333'
+  const fallbackBase = `${host}:${port}`
+
+  const isLocal =
+    !baseDomain ||
+    baseDomain.includes('localhost') ||
+    baseDomain.includes('127.0.0.1') ||
+    baseDomain.includes('0.0.0.0') ||
+    /:\d+/.test(baseDomain)
+
+  const expectedPath = `/shop/${subdomain}`
+
+  try {
+    const parsedUrl = new URL(url)
+    const expectedOrigin = isLocal
+      ? `http://${fallbackBase}`
+      : `https://${baseDomain.replace(/^https?:\/\//, '').replace(/\/+$/, '')}`
+
+    if (parsedUrl.origin === new URL(expectedOrigin).origin) {
+      if (!parsedUrl.pathname.startsWith(expectedPath)) {
+        const cleanBase = expectedOrigin.replace(/\/$/, '')
+        return `${cleanBase}${expectedPath}`
+      }
+    }
+  } catch {
+    // If URL parsing fails, fall through to original URL
+  }
+
+  return url
+}
+
 /** Generates a short random slug like "pl_a1b2c3d4e5" */
 export function genPaymentLinkSlug(): string {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'

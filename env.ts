@@ -70,6 +70,7 @@ export default Env.rules({
 	POLYGON_MUMBAI_RPC: Env.schema.string.optional(),
 	ASSETCHAIN_TESTNET_RPC: Env.schema.string.optional(),
 	CKB_TESTNET_RPC: Env.schema.string.optional(),
+	CKB_MAINNET_RPC: Env.schema.string.optional(),
 
 	// -------------------------------------------------------------------------
 	// Fiber Network (CKB payment channels)

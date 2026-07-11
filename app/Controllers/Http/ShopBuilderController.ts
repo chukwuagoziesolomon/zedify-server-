@@ -1,5 +1,5 @@
 import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
-import { formatErrorMessage, formatSuccessMessage, genRandomUuid, genPaymentLinkSlug } from 'App/helpers/utils'
+import { formatErrorMessage, formatSuccessMessage, genRandomUuid, genPaymentLinkSlug, sanitizeShopUrl } from 'App/helpers/utils'
 import RolesController from './RolesController'
 import Shop from 'App/Models/Shop'
 import ShopProduct from 'App/Models/ShopProduct'
@@ -20,6 +20,15 @@ export default class ShopBuilderController extends RolesController {
     return `${host}:${port}`
   }
 
+  private isLocalBase(base: string): boolean {
+    return (
+      base.includes('localhost') ||
+      base.includes('127.0.0.1') ||
+      base.includes('0.0.0.0') ||
+      /:\d+/.test(base)
+    )
+  }
+
   /**
    * Build the shop URL. In production this is a subdomain:
    *   https://mystore.yourdomain.com
@@ -28,19 +37,14 @@ export default class ShopBuilderController extends RolesController {
    *   http://localhost:3000/shop/mystore
    */
   private buildShopUrl(subdomain: string): string {
-    const base = this.baseDomain.replace(/\/+$/, '') // strip trailing slash
-    const isLocal =
-      base.includes('localhost') ||
-      base.includes('127.0.0.1') ||
-      /:\d+/.test(base)
+    const base = this.baseDomain.replace(/\/+$/, '')
+    const isLocal = this.isLocalBase(base)
 
     if (isLocal) {
-      // Path-based: frontend handles /shop/:subdomain routing
       return `${base}/shop/${subdomain}`
     }
-    // Subdomain-based for staging/production
     const cleanBase = base.replace(/^https?:\/\//, '')
-    return `https://${subdomain}.${cleanBase}`
+    return `https://${cleanBase}/shop/${subdomain}`
   }
 
   /**
@@ -533,7 +537,7 @@ export default class ShopBuilderController extends RolesController {
   }
 
   private formatShop(shop: Shop, paymentGateway?: { enabled: boolean; payment_link_id: string | null; checkout_url: string | null }) {
-    const shopUrl = this.buildShopUrl(shop.subdomain)
+    const shopUrl = sanitizeShopUrl(this.buildShopUrl(shop.subdomain), shop.subdomain)
     const checkoutUrl = paymentGateway?.checkout_url ?? null
     return {
       id: shop.uniqueId,

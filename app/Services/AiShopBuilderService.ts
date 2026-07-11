@@ -7,7 +7,7 @@ import AiShopConversation, {
   EntityMemory,
 } from 'App/Models/AiShopConversation'
 import AnthropicService from './AnthropicService'
-import { genRandomUuid } from 'App/helpers/utils'
+import { genRandomUuid, sanitizeShopUrl } from 'App/helpers/utils'
 
 // ─── Memory constants ──────────────────────────────────────────────────────────
 /**
@@ -38,7 +38,21 @@ const BUFFER_SIZE = 10
  */
 class AiShopBuilderServiceClass {
   private get baseDomain(): string {
-    return Env.get('SHOP_BASE_DOMAIN', 'yourdomain.com')
+    return Env.get('SHOP_BASE_DOMAIN', '')
+  }
+
+  private getShopUrl(subdomain: string): string {
+    const base = this.baseDomain.replace(/\/+$/, '')
+    if (!base) return ''
+    const isLocal =
+      base.includes('localhost') ||
+      base.includes('127.0.0.1') ||
+      base.includes('0.0.0.0') ||
+      /:\d+/.test(base)
+    if (isLocal) return `http://${base}/shop/${subdomain}`
+    const cleanBase = base.replace(/^https?:\/\//, '')
+    const raw = `https://${cleanBase}/shop/${subdomain}`
+    return sanitizeShopUrl(raw, subdomain)
   }
 
   // ─── System Prompt Builder ────────────────────────────────────────────────
@@ -93,7 +107,7 @@ You are helping the merchant build and customize their online shop.
 ${entityBlock}${summaryBlock}
 ## Current Shop State
 - Business Name: ${shop.businessName}
-- Shop URL: https://${shop.subdomain}.${this.baseDomain}
+- Shop URL: ${this.getShopUrl(shop.subdomain)}
 - Status: ${shop.status}
 - Currency: ${shop.currency}
 - Description: ${shop.description || 'Not set yet.'}
