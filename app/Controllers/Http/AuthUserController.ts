@@ -106,13 +106,15 @@ export default class AuthUserController {
       response.status(200).json(await formatSuccessMessage("User created!", result))
 
     } catch (error) {
-      console.error('Signup failed:', error)
+      const formattedError = await formatErrorMessage(error)
+      console.error('Signup failed:', formattedError)
       // Clean up uploaded files on error
       if (uploadedFiles.length > 0) {
         const fileService = new FileUploadService()
         await fileService.deleteFiles(uploadedFiles)
       }
-      response.status(400).json(await formatErrorMessage(error))
+      const status = formattedError.code && formattedError.code >= 400 && formattedError.code < 600 ? formattedError.code : 400
+      response.status(status).json(formattedError)
     }
   }
 
