@@ -28,11 +28,27 @@ export default class AuthUserController {
     const uploadedFiles: string[] = [] // Track files for cleanup on error
 
     try {
-      const payload = await request.validate(SignupValidator)
+      const body = request.body()
+      const payload = {
+        email: body.email ?? request.input('email'),
+        password: body.password ?? request.input('password'),
+        password_confirmation: body.password_confirmation ?? request.input('password_confirmation'),
+        phone: body.phone ?? request.input('phone'),
+        business_name: body.business_name ?? request.input('business_name'),
+        business_type: body.business_type ?? request.input('business_type'),
+        bvn: body.bvn ?? request.input('bvn'),
+        cac_number: body.cac_number ?? request.input('cac_number'),
+      }
+
+      const validationPayload = await request.validate(SignupValidator)
+      const validatedPayload = {
+        ...payload,
+        ...validationPayload,
+      }
 
       // Validate registered business requirements
-      if (payload.business_type === 'registered') {
-        if (!payload.cac_number) {
+      if (validatedPayload.business_type === 'registered') {
+        if (!validatedPayload.cac_number) {
           throw new Error('CAC number is required for registered businesses')
         }
 
@@ -46,13 +62,13 @@ export default class AuthUserController {
 
       // Create user first
       let result = await User.create({
-        email: payload.email,
-        password: payload.password,
-        phone: payload.phone,
-        businessName: payload.business_name,
-        businessType: payload.business_type as 'starter' | 'registered',
-        bvn: payload.bvn,
-        cacNumber: payload.business_type === 'registered' ? payload.cac_number : undefined,
+        email: validatedPayload.email,
+        password: validatedPayload.password,
+        phone: validatedPayload.phone,
+        businessName: validatedPayload.business_name,
+        businessType: validatedPayload.business_type as 'starter' | 'registered',
+        bvn: validatedPayload.bvn,
+        cacNumber: validatedPayload.business_type === 'registered' ? validatedPayload.cac_number : undefined,
       })
 
       // Upload files for registered businesses
@@ -90,6 +106,7 @@ export default class AuthUserController {
       response.status(200).json(await formatSuccessMessage("User created!", result))
 
     } catch (error) {
+      console.error('Signup failed:', error)
       // Clean up uploaded files on error
       if (uploadedFiles.length > 0) {
         const fileService = new FileUploadService()
