@@ -1,0 +1,71 @@
+services:
+  - type: web
+    name: wt-payments-server
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    port: 3335
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3335
+      - key: HOST
+        value: 0.0.0.0
+      - key: APP_KEY
+        generateValue: true
+      - key: DRIVE_DISK
+        value: local
+      - key: DB_CONNECTION
+        value: pg
+      - key: PG_CONNECTION_STRING
+        sync: false
+      - key: PG_HOST
+        sync: false
+      - key: PG_PORT
+        value: "5432"
+      - key: PG_USER
+        sync: false
+      - key: PG_PASSWORD
+        sync: false
+      - key: PG_DB_NAME
+        sync: false
+      - key: PG_SSL
+        value: "true"
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+      - key: SERVER_EMAIL
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: JWT_KEY
+        sync: false
+      - key: OWNER_EVM_PRIVATE_KEY
+        sync: false
+      - key: MASTER_EVM_ADDRESS
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: APP_ENV
+        value: production
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_PRIMARY_MODEL
+        value: meta-llama/llama-3.2-3b-instruct:free
+      - key: OPENROUTER_FALLBACK_MODEL
+        value: meta-llama/llama-3.3-70b-instruct:free
+      - key: SHOP_BASE_DOMAIN
+        sync: false
+      - key: CLIENT_URL
+        sync: false

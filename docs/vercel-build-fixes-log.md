@@ -178,3 +178,29 @@ The project has `noUnusedLocals` and `noUnusedParameters` enabled. The following
 After applying all fixes:
 - Run `yarn run build` locally to ensure zero TypeScript errors.
 - Push to Vercel and confirm the `yarn run build` step succeeds.
+
+---
+
+## 10. Render Deployment via Docker
+
+**Date:** 2026-07-02  
+**Goal:** Provide a production-ready Docker setup for deploying to Render.
+
+### 10.1 Files added
+- `Dockerfile` — multi-stage build using `node:20-alpine`, installs dependencies, compiles AdonisJS with `--ignore-ts-errors`, installs production deps, and runs `server.js`.
+- `docker-compose.yml` — local test harness mapping port `3335`.
+- `render.yaml` — Render service definition mapping Dockerfile to a web service on port `3335`.
+- `.dockerignore` — excludes `node_modules`, `build`, `.env`, and other non-essential files from the Docker build context.
+
+### 10.2 Notes
+- Render sets the `PORT` env var at runtime; AdonisJS reads `process.env.PORT` automatically.
+- `APP_KEY` should be generated via Render's `generateValue` feature rather than committed.
+- Sensitive values (`PG_*`, `EMAIL_*`, `JWT_KEY`, etc.) should be marked `sync: false` in `render.yaml` and configured directly in the Render dashboard.
+
+### 10.3 Deploy steps
+1. Push repo to GitHub/GitLab.
+2. In Render, create a new **Web Service**.
+3. Connect repo; Render auto-detects `Dockerfile`.
+4. Set the Docker start command if needed: `node server.js`.
+5. Add environment variables from `render.yaml` via the Render dashboard.
+6. Deploy.
