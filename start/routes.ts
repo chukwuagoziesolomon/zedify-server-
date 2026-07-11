@@ -1,25 +1,22 @@
-/*
-|--------------------------------------------------------------------------
-| Routes
-|--------------------------------------------------------------------------
-|
-| This file is dedicated for defining HTTP routes. A single file is enough
-| for majority of projects, however you can define routes in different
-| files and just make sure to import them inside this file. For example
-|
-| Define routes in following two files
-| ├── start/routes/cart.ts
-| ├── start/routes/customer.ts
-|
-| and then import them inside `start/routes.ts` as follows
-|
-| import './routes/cart'
-| import './routes/customer'
-|
-*/
-
 import Route from '@ioc:Adonis/Core/Route'
 
 Route.get('/', async () => {
   return { hello: 'world' }
 })
+
+
+Route.group(() => {
+  Route.post('/login', 'AuthUserController.login')
+
+  Route.post('/signup', 'AuthUserController.signup')
+
+  Route.post('/forgot-password', 'AuthUserController.forgotPassword')
+
+  Route.post('/reset-password', 'AuthUserController.resetPassword')
+
+  Route.get('/view', 'AuthUserController.viewLoggedInUser').middleware('auth')
+
+  Route.patch('/update', 'AuthUserController.updateLoggedInUser').middleware('auth')
+
+  Route.post('/logout', 'AuthUserController.logout').middleware('auth')
+}).prefix('/user/account')

@@ -199,10 +199,10 @@
     abstract-logging "^2.0.1"
     pino "^6.14.0"
 
-"@adonisjs/lucid@^18.4.0":
-  version "18.4.2"
-  resolved "https://registry.yarnpkg.com/@adonisjs/lucid/-/lucid-18.4.2.tgz#2cfc44b90ce4719153412d0d2a2d271402998dc4"
-  integrity sha512-4k8GOat/YQtobNqwBIU8VAuY19p+V3ucBRoZ+iwxd/qy/KE1XupPzuMZVWYt1vyBboCrBmEYYmvC851tNqoP0A==
+"@adonisjs/lucid@18.4.0":
+  version "18.4.0"
+  resolved "https://registry.yarnpkg.com/@adonisjs/lucid/-/lucid-18.4.0.tgz#845013b6ece5ba9f99344ad04920d3e496a19832"
+  integrity sha512-pSBhKFzqr6mWoeIiGdcW2OQIWAyCoLn+G7VmXXLqxHvGm+9SaioKJaSMmaJa0xgS5v64r/MVLeH/nw87Q4KpyQ==
   dependencies:
     "@faker-js/faker" "^8.0.1"
     "@poppinss/hooks" "^5.0.3"

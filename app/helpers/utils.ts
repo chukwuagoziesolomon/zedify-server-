@@ -1,6 +1,6 @@
-import Env from '@ioc:Adonis/Core/Env'
+// import Env from '@ioc:Adonis/Core/Env'
 import { v4 as uuidv4 } from 'uuid';
-import { ethers } from 'ethers';
+// import { ethers } from 'ethers';
 
 export function genRandomUuid() {
   return String(uuidv4()).toLowerCase()

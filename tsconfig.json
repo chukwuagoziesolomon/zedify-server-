@@ -14,7 +14,7 @@
     "sourceMap": true,
     "paths": {
       "App/*": [
-        "./app/*"
+        "app/*"
       ],
       "Config/*": [
         "./config/*"
