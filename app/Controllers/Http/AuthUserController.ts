@@ -75,7 +75,7 @@ export default class AuthUserController {
       let cacDocuments: any[] = []
       let shareholdersLetter: any = null
 
-      if (payload.business_type === 'registered') {
+      if (validatedPayload.business_type === 'registered') {
         // Upload CAC documents
         const cacFilesFromRequest = request.files('cac_documents') || []
         if (cacFilesFromRequest.length > 0) {

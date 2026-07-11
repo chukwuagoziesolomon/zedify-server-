@@ -2,31 +2,31 @@ import { schema, rules } from '@ioc:Adonis/Core/Validator'
 
 export default class SignupValidator {
   public schema = schema.create({
-    email: schema.string([
+    email: schema.string({ trim: true }, [
       rules.email(),
       rules.unique({ table: 'users', column: 'email' })
     ]),
-    password: schema.string([
+    password: schema.string({ trim: true }, [
       rules.confirmed(),
       rules.minLength(4)
     ]),
-    password_confirmation: schema.string(),
-    phone: schema.string([
+    password_confirmation: schema.string({ trim: true }),
+    phone: schema.string({ trim: true }, [
       rules.maxLength(15),
       rules.unique({ table: 'users', column: 'phone' })
     ]),
-    business_name: schema.string([
+    business_name: schema.string({ trim: true }, [
       rules.minLength(2),
       rules.maxLength(255)
     ]),
-    business_type: schema.enum(['starter', 'registered']),
-    bvn: schema.string([
-      rules.minLength(11),
-      rules.maxLength(11)
+    business_type: schema.enum(['starter', 'registered'] as const),
+    bvn: schema.string({ trim: true }, [
+      rules.regex(/^[0-9]{11}$/),
     ]),
-    cac_number: schema.string.optional([
+    cac_number: schema.string.optional({ trim: true }, [
+      rules.requiredIf('business_type', 'registered'),
       rules.minLength(5),
-      rules.maxLength(255)
+      rules.maxLength(255),
     ]),
     // File uploads are handled differently - not through validation schema
     // They are processed directly from request.file()
@@ -50,8 +50,8 @@ export default class SignupValidator {
     'business_type.required': 'Business type is required',
     'business_type.enum': 'Business type must be either starter or registered',
     'bvn.required': 'BVN is required',
-    'bvn.minLength': 'BVN must be exactly 11 digits',
-    'bvn.maxLength': 'BVN must be exactly 11 digits',
+    'bvn.regex': 'BVN must be exactly 11 digits',
+    'cac_number.requiredIf': 'CAC number is required for registered businesses',
     'cac_number.minLength': 'CAC number must be at least 5 characters',
     'cac_number.maxLength': 'CAC number is too long',
   }
