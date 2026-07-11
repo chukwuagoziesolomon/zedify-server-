@@ -29,8 +29,11 @@ Route.post('/user/shop/banner', 'ShopBuilderController.uploadBanner').middleware
 /** POST /user/shop/ai/chat — Chat with the AI shop builder agent */
 Route.post('/user/shop/ai/chat', 'ShopBuilderController.aiChat').middleware('auth:user')
 
-/** GET /user/shop/ai/history — Get AI conversation history */
+/** POST /user/shop/ai/chat/stream — SSE streaming chat (text/event-stream) */
+Route.post('/user/shop/ai/chat/stream', 'ShopBuilderController.aiChatStream').middleware('auth:user')
+
+/** GET /user/shop/ai/history — Get AI conversation history (buffer + summary + entity memory) */
 Route.get('/user/shop/ai/history', 'ShopBuilderController.aiHistory').middleware('auth:user')
 
-/** DELETE /user/shop/ai/memory — Reset AI memory (start fresh) */
+/** DELETE /user/shop/ai/memory — Reset all AI memory tiers (start fresh) */
 Route.delete('/user/shop/ai/memory', 'ShopBuilderController.aiResetMemory').middleware('auth:user')

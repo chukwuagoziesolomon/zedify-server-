@@ -46,6 +46,9 @@ export default class BusinessSetting extends BaseModel {
   @column()
   public webhookSigningSecret: string | null
 
+  @column.dateTime()
+  public testKeyExpiresAt: DateTime | null
+
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime
 

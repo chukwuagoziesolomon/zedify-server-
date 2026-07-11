@@ -190,13 +190,97 @@ export default class ShopBuilderController extends RolesController {
       const uniqueId = this.allowOnlyLoggedInUsers(auth)
       const shop = await Shop.query().where('userId', uniqueId).firstOrFail()
 
-      const history = await AiShopBuilderService.getHistory(shop.uniqueId)
+      const { messages, summaryMemory, entityMemory } = await AiShopBuilderService.getHistory(shop.uniqueId)
       // Strip reasoning_details from history response (internal use only)
-      const clean = history.map(({ role, content }) => ({ role, content }))
+      const clean = messages.map(({ role, content }) => ({ role, content }))
 
-      return response.ok(formatSuccessMessage('Conversation history', clean))
+      return response.ok(formatSuccessMessage('Conversation history', {
+        messages: clean,
+        summary_memory: summaryMemory,
+        entity_memory: entityMemory,
+      }))
     } catch (error) {
       return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * POST /user/shop/ai/chat/stream
+   *
+   * SSE streaming chat endpoint. Opens a persistent text/event-stream response
+   * and pushes AI tokens one by one as they are generated.
+   *
+   * Body: { message: string }
+   *
+   * SSE Event types:
+   *   data: {"type":"token","content":"..."}
+   *   data: {"type":"action","action":{...}}
+   *   data: {"type":"done","conversation_id":"..."}
+   *   data: {"type":"error","message":"..."}
+   *
+   * Frontend example:
+   *   const res = await fetch('/api/user/shop/ai/chat/stream', {
+   *     method: 'POST',
+   *     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+   *     body: JSON.stringify({ message: 'Make my shop look modern and bold' }),
+   *   })
+   *   const reader = res.body.getReader()
+   *   // read chunks and split on '\n\n' to parse individual SSE events
+   */
+  public async aiChatStream({ auth, request, response }: HttpContextContract) {
+    let uniqueId: string
+    try {
+      uniqueId = this.allowOnlyLoggedInUsers(auth)
+    } catch {
+      return response.unauthorized({ error: 'Unauthorized' })
+    }
+
+    const message = request.input('message')
+    if (!message || !String(message).trim()) {
+      return response.badRequest({ error: 'message is required.' })
+    }
+
+    let shop: Shop
+    try {
+      shop = await Shop.query().where('userId', uniqueId).firstOrFail()
+    } catch {
+      return response.notFound({ error: 'Shop not found.' })
+    }
+
+    // Set SSE headers before writing any body
+    const res = response.response
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-cache, no-transform')
+    res.setHeader('Connection', 'keep-alive')
+    res.setHeader('X-Accel-Buffering', 'no') // disable nginx buffering
+    res.flushHeaders()
+
+    const write = (event: object) => {
+      try {
+        res.write(`data: ${JSON.stringify(event)}\n\n`)
+      } catch {
+        // Client disconnected — ignore write errors
+      }
+    }
+
+    // Heartbeat to prevent proxy / browser 30s timeout
+    const heartbeat = setInterval(() => {
+      try { res.write(': heartbeat\n\n') } catch { clearInterval(heartbeat) }
+    }, 20000)
+
+    try {
+      for await (const event of AiShopBuilderService.chatStream(
+        shop.uniqueId,
+        String(message).trim()
+      )) {
+        write(event)
+        if (event.type === 'done' || event.type === 'error') break
+      }
+    } catch (err: any) {
+      write({ type: 'error', message: err.message ?? 'Unexpected error' })
+    } finally {
+      clearInterval(heartbeat)
+      res.end()
     }
   }
 
