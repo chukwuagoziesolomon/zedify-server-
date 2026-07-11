@@ -11,7 +11,7 @@ export default class BusinessSetting extends BaseModel {
   public uniqueId: string = genRandomUuid()
 
   @column()
-  public businessId: number
+  public businessId: string
 
   @column()
   public testPrivateKey: string

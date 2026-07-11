@@ -10,6 +10,7 @@ import Env from '@ioc:Adonis/Core/Env'
 import { NotificationService } from 'App/Lib/notification/notification'
 import Admin from 'App/Models/Admin';
 import SignupValidator from 'App/Validators/SignupValidator';
+import BusinessSetting from 'App/Models/BusinessSetting'
 
 const jwtConstants = {
   secret: Env.get('JWT_KEY'),
@@ -61,6 +62,10 @@ export default class AuthUserController {
       });
 
       if (result !== null) {
+        // Create business settings for the new user
+        await BusinessSetting.create({
+          businessId: result.uniqueId,
+        })
         response.status(200).json(await formatSuccessMessage("User created!", result));
       } else {
         throw new Error("Action failed!");

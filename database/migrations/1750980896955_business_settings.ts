@@ -17,7 +17,7 @@ export default class extends BaseSchema {
       table.string('live_webhook_url', 500).nullable()
       table.string('fee_bearer').notNullable().defaultTo(FeeBearer.BUSINESS)
       table.string('current_environment').notNullable().defaultTo(CurrentEnvironment.TEST)
-      table.string('payout_interval').notNullable().defaultTo(PayoutInterval.DAILY)
+      table.string('payout_interval').notNullable().defaultTo(PayoutInterval.INSTANT)
 
       /**
        * Uses timestamptz for PostgreSQL and DATETIME2 for MSSQL
