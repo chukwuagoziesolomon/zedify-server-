@@ -114,8 +114,6 @@ class WithdrawalServiceClass {
       throw new Error(`Insufficient balance. Available: ${userWallet.balance}`)
     }
 
-    const fees = this.calculateFees(payload.amount, payload.type)
-
     // Generate 6-digit OTP
     const otpCode = String(Math.floor(100000 + Math.random() * 900000))
     const otpId = uuid()

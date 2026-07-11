@@ -72,6 +72,6 @@ export class PaymentWebhookSchema {
       'chainId.number': 'Chain ID must be a number',
     }
 
-    return await validator.validate(payloadSchema, data, messages)
+    return await validator.validate({ schema: payloadSchema, data, messages })
   }
 }
