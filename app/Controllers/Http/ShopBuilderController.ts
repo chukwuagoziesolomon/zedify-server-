@@ -9,6 +9,7 @@ import Env from '@ioc:Adonis/Core/Env'
 import PaymentLink from 'App/Models/PaymentLink'
 import { PaymentLinkStatus } from 'App/Lib/types'
 import { getDefaultFeatures, getTemplatePreset, ShopFeatures } from 'App/Lib/shopFeatures'
+import Logger from '@ioc:Adonis/Core/Logger'
 
 export default class ShopBuilderController extends RolesController {
   private get baseDomain(): string {
@@ -114,7 +115,7 @@ export default class ShopBuilderController extends RolesController {
       const preset = getTemplatePreset(templateKey)
       const defaultFeatures = getDefaultFeatures(templateKey)
 
-      const shop = await Shop.create({
+      const shopData: any = {
         uniqueId: genRandomUuid(),
         userId: uniqueId,
         businessName: String(payload.businessName).trim(),
@@ -124,10 +125,23 @@ export default class ShopBuilderController extends RolesController {
         status: payload.shopType === 'ai_custom' ? 'draft' : 'published',
         shopType: payload.shopType,
         template: templateKey,
-        features: payload.features || defaultFeatures,
         customizationAccessPaid: false,
         customizationPaymentReferenceId: payload.customizationPaymentReferenceId,
-      })
+      }
+
+      let shop: Shop
+      try {
+        shopData.features = payload.features || defaultFeatures
+        shop = await Shop.create(shopData)
+      } catch (error: any) {
+        if (error.message?.includes('column "features" of relation "shops" does not exist')) {
+          delete shopData.features
+          shop = await Shop.create(shopData)
+          Logger.warn('[ShopBuilder] Created shop without features column. Run migration 1790000000007 to enable features.')
+        } else {
+          throw error
+        }
+      }
 
       if (payload.themeConfig) {
         shop.themeConfig = payload.themeConfig

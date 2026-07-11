@@ -121,11 +121,29 @@ export default class extends BaseSeeder {
       // Non-EVM Networks
       // -----------------------------------------------------------------------
       {
+        name: 'Nervos CKB Mainnet',
+        logo: 'https://cryptologos.cc/logos/nervos-network-ckb-logo.png',
+        rpcUrl: Env.get('CKB_MAINNET_RPC', 'https://mainnet.ckb.dev/rpc'),
+        isTestnet: false,
+        chainKey: 'ckb',
+        networkType: 'ckb',
+        chainId: null,
+      },
+      {
         name: 'Nervos CKB Testnet',
         logo: 'https://cryptologos.cc/logos/nervos-network-ckb-logo.png',
         rpcUrl: Env.get('CKB_TESTNET_RPC', 'https://testnet.ckb.dev/rpc'),
         isTestnet: true,
         chainKey: 'ckb',
+        networkType: 'ckb',
+        chainId: null,
+      },
+      {
+        name: 'Fiber Mainnet',
+        logo: 'https://cryptologos.cc/logos/nervos-network-ckb-logo.png',
+        rpcUrl: Env.get('FIBER_NODE_URL', 'http://127.0.0.1:8227'),
+        isTestnet: false,
+        chainKey: 'fiber-mainnet',
         networkType: 'ckb',
         chainId: null,
       },

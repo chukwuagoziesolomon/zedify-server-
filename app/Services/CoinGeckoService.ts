@@ -88,7 +88,7 @@ class CoinGeckoServiceClass {
       const headers: Record<string, string> = {
         Accept: 'application/json',
       }
-      if (COINGECKO_API_KEY) {
+      if (COINGECKO_API_KEY && COINGECKO_API_KEY.trim() !== '') {
         headers['x-cg-demo-api-key'] = COINGECKO_API_KEY
       }
 
