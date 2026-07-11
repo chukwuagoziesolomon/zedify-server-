@@ -1,5 +1,11 @@
 {
   "typescript": true,
+  "metaFiles": [
+    {
+      "pattern": ".adonisrc.json",
+      "reloadServer": false
+    }
+  ],
   "commands": [
     "./commands",
     "@adonisjs/core/build/commands/index.js",
