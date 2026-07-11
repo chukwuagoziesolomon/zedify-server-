@@ -3,7 +3,7 @@ import Route from '@ioc:Adonis/Core/Route'
 Route.group(() => {
   /**
    * @swagger
-   * /api/client/settings/api-key:
+   * /api/user/settings/api-key:
    *   post:
    *     tags:
    *       - API Keys
@@ -36,7 +36,7 @@ Route.group(() => {
 
   /**
    * @swagger
-   * /api/client/settings/api-key:
+   * /api/user/settings/api-key:
    *   get:
    *     tags:
    *       - API Keys
@@ -67,4 +67,4 @@ Route.group(() => {
    *         description: Bad request
    */
   Route.get('/', 'SettingsApiKeyController.show')
-}).prefix('/api/client/settings/api-key').middleware('auth:user')
+}).prefix('/api/user/settings/api-key').middleware('auth:user')

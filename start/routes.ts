@@ -4,9 +4,11 @@ Route.get('/', async () => {
   return { hello: 'world' }
 })
 
-import '../routes/user/user'
 import '../routes/admin/admin'
 import '../routes/admin/currency'
 import '../routes/admin/crypto_network'
+
+import '../routes/user/user'
 import '../routes/user/settings_api_key'
 import '../routes/user/settings_webhook'
+import '../routes/user/settings_general'

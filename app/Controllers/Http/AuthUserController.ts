@@ -4,9 +4,6 @@ import { schema, rules } from '@ioc:Adonis/Core/Validator'
 import { formatErrorMessage, formatSuccessMessage } from 'App/helpers/utils';
 import { createHmac } from "crypto";
 import Env from '@ioc:Adonis/Core/Env'
-// import bcrypt from "bcryptjs";
-
-
 import { NotificationService } from 'App/Lib/notification/notification'
 import Admin from 'App/Models/Admin';
 import SignupValidator from 'App/Validators/SignupValidator';
@@ -276,13 +273,16 @@ export default class AuthUserController {
 
   public async viewLoggedInUser({ response, auth }: HttpContextContract) {
     try {
-
       const user = auth.use('user').user ?? '';
       if (!user)
         throw new Error('Authentication error!')
 
-      response.status(200).json(await formatSuccessMessage("User retrieved successfully", user));
+      // Exclude password from user object
+      const { password, ...userWithoutPassword } = user.toJSON ? user.toJSON() : user;
+
+      response.status(200).json(await formatSuccessMessage("User retrieved successfully", userWithoutPassword));
     } catch (error) {
+      console.error(error)
       response.status(400).json(await formatErrorMessage(error))
     }
   }

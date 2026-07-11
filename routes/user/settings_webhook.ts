@@ -10,7 +10,7 @@ import Route from '@ioc:Adonis/Core/Route'
 Route.group(() => {
   /**
    * @swagger
-   * /api/client/settings/webhook:
+   * /api/user/settings/webhook:
    *   post:
    *     summary: Configure webhook URL for business
    *     tags: [Webhook Settings (Client)]
@@ -54,7 +54,7 @@ Route.group(() => {
 
   /**
    * @swagger
-   * /api/client/settings/webhook:
+   * /api/user/settings/webhook:
    *   get:
    *     summary: Get current webhook URLs for business
    *     tags: [Webhook Settings (Client)]
@@ -91,4 +91,4 @@ Route.group(() => {
    *                   type: string
    */
   Route.get('/', 'SettingsWebhookController.show')
-}).prefix('/api/client/settings/webhook').middleware('auth:user')
+}).prefix('/api/user/settings/webhook').middleware('auth:user')

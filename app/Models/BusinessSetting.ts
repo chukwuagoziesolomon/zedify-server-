@@ -40,6 +40,9 @@ export default class BusinessSetting extends BaseModel {
   @column()
   public payoutInterval: PayoutInterval
 
+  @column()
+  public payoutType: string
+
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime
 
