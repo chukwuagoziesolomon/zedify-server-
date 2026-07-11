@@ -74,9 +74,9 @@ export default Env.rules({
 	CLIENT_URL: Env.schema.string.optional(),
 
 	// -------------------------------------------------------------------------
-	// AI Shop Builder (Gemini)
+	// AI Shop Builder (Anthropic)
 	// -------------------------------------------------------------------------
-	GEMINI_API_KEY: Env.schema.string.optional(),
-	GEMINI_MODEL: Env.schema.string.optional(),
-	SHOP_BASE_DOMAIN: Env.schema.string.optional(),
+	ANTHROPIC_API_KEY: Env.schema.string(),
+	ANTHROPIC_MODEL: Env.schema.string(),
+	SHOP_BASE_DOMAIN: Env.schema.string(),
 })

@@ -59,10 +59,10 @@ services:
         sync: false
       - key: APP_ENV
         value: production
-      - key: GEMINI_API_KEY
+      - key: ANTHROPIC_API_KEY
         sync: false
-      - key: GEMINI_MODEL
-        value: gemini-2.0-flash
+      - key: ANTHROPIC_MODEL
+        value: claude-haiku-4-5-20251001
       - key: SHOP_BASE_DOMAIN
         sync: false
       - key: CLIENT_URL

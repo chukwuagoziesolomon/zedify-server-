@@ -84,9 +84,9 @@ The AI agent uses **persistent multi-turn memory**. Every conversation is stored
 - It picks up the conversation context seamlessly in new sessions
 - The system prompt is dynamically rebuilt on every request with live shop + product data
 
-**Primary model:** `gemini-2.0-flash` (via Google Gemini)
+**Primary model:** `claude-haiku-4-5-20251001` (via Anthropic Messages API)
 
-The model is configured via `GEMINI_MODEL` and `GEMINI_API_KEY`.
+The model is configured via `ANTHROPIC_MODEL` and `ANTHROPIC_API_KEY`.
 
 ### AI Endpoints Summary
 
@@ -306,8 +306,8 @@ The network RPC URL is loaded dynamically from the `crypto_networks` DB table (`
 
 ```env
 # AI Shop Builder
-GEMINI_API_KEY=AIza...
-GEMINI_MODEL=gemini-2.0-flash
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL=claude-haiku-4-5-20251001
 SHOP_BASE_DOMAIN=yourdomain.com
 
 # Webhooks

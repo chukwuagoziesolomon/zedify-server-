@@ -6,7 +6,7 @@ import AiShopConversation, {
   ConversationMessage,
   EntityMemory,
 } from 'App/Models/AiShopConversation'
-import GeminiService from './GeminiService'
+import AnthropicService from './AnthropicService'
 import { genRandomUuid } from 'App/helpers/utils'
 
 // ─── Memory constants ──────────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ Only include fields that were explicitly mentioned. Output format:
     ]
 
     try {
-      const compressionResponse = await GeminiService.chat(contextForSummarizer)
+      const compressionResponse = await AnthropicService.chat(contextForSummarizer)
       const raw = compressionResponse.content ?? ''
       const parts = raw.split('---ENTITIES---')
 
@@ -308,8 +308,7 @@ Only include fields that were explicitly mentioned. Output format:
     const conversation = await this.getOrCreateConversation(shopId)
 
     const apiMessages = await this.buildApiMessages(shop, conversation, userMessage)
-    // enableReasoning: false — free models don't support it; switch to true when using Claude
-    const aiResponse = await GeminiService.chat(apiMessages)
+    const aiResponse = await AnthropicService.chat(apiMessages)
 
     await this.persistAndCompress(
       conversation,
@@ -368,7 +367,7 @@ Only include fields that were explicitly mentioned. Output format:
     let assembled = ''
 
     try {
-      for await (const token of GeminiService.stream(apiMessages)) {
+      for await (const token of AnthropicService.stream(apiMessages)) {
         assembled += token
         yield { type: 'token', content: token }
       }
