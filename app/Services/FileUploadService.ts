@@ -97,7 +97,7 @@ export class FileUploadService {
       throw new Error(`Invalid file: ${file.errors[0]?.message || 'Unknown error'}`)
     }
 
-    if (!this.ALLOWED_IMAGE_TYPES.includes(file.mimetype!)) {
+    if (!this.ALLOWED_IMAGE_TYPES.includes(file.type!)) {
       throw new Error(
         `Invalid file type for CAC document. Allowed types: ${this.ALLOWED_IMAGE_TYPES.join(', ')}`
       )
@@ -118,7 +118,7 @@ export class FileUploadService {
       throw new Error(`Invalid file: ${file.errors[0]?.message || 'Unknown error'}`)
     }
 
-    if (!this.ALLOWED_DOCUMENT_TYPES.includes(file.mimetype!)) {
+    if (!this.ALLOWED_DOCUMENT_TYPES.includes(file.type!)) {
       throw new Error(
         `Invalid file type for approval letter. Allowed types: PDF, Word (.docx)`
       )
