@@ -138,7 +138,7 @@ class GeminiServiceClass {
    *   }
    */
   public async *stream(messages: ConversationMessage[]): AsyncGenerator<string> {
-    const url = `${this.baseUrl}/${this.model}:streamGenerateContent?key=${this.apiKey}`
+    const url = `${this.baseUrl}/${this.model}:streamGenerateContent`
     const body = {
       contents: messages.map((m) => ({
         role: m.role === 'user' ? 'user' : 'model',
@@ -156,6 +156,7 @@ class GeminiServiceClass {
         timeout: 90000,
         headers: {
           'Content-Type': 'application/json',
+          'X-goog-api-key': this.apiKey,
         },
       })
 
@@ -201,7 +202,7 @@ class GeminiServiceClass {
   }
 
   private async callModel(messages: ConversationMessage[]): Promise<GeminiResponse> {
-    const url = `${this.baseUrl}/${this.model}:generateContent?key=${this.apiKey}`
+    const url = `${this.baseUrl}/${this.model}:generateContent`
 
     const body = {
       contents: messages
@@ -219,6 +220,7 @@ class GeminiServiceClass {
     const res = await axios.post(url, body, {
       headers: {
         'Content-Type': 'application/json',
+        'X-goog-api-key': this.apiKey,
       },
       timeout: 60000,
     })
