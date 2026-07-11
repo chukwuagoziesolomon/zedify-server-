@@ -337,7 +337,7 @@ class PayoutServiceClass {
   private async updateTransferStatus(
     reference: string,
     status: 'completed' | 'failed' | 'cancelled',
-    paystackId?: string,
+    _paystackId?: string,
     failureReason?: string
   ): Promise<void> {
     try {

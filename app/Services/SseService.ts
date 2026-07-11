@@ -35,13 +35,8 @@ class SseServiceClass {
   /** Map<userId, Set<SseClient>> — one user can have multiple open tabs */
   private clients = new Map<string, Set<SseClient>>()
 
-  /** Heartbeat interval reference — keeps connections alive through proxies */
-  private heartbeatTimer: NodeJS.Timeout | null = null
-
   constructor() {
-    // Send a comment (:heartbeat) to all clients every 25 seconds
-    // to prevent idle timeouts in proxies / load balancers
-    this.heartbeatTimer = setInterval(() => this.heartbeat(), 25_000)
+    setInterval(() => this.heartbeat(), 25_000)
   }
 
   // ─── Registration ──────────────────────────────────────────────────────────
