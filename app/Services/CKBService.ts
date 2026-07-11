@@ -47,7 +47,8 @@ class CKBServiceClass {
    * Generate a new random private key and its corresponding CKB testnet address
    */
   public generateWallet(): { privateKey: string; address: string } {
-    const privateKey = hd.key.generatePrivateKey()
+    const { randomBytes } = require('crypto')
+    const privateKey = randomBytes(32).toString('hex')
     const address = this.generateAddress(privateKey)
     return { privateKey, address }
   }

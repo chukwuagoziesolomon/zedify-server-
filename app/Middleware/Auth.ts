@@ -29,7 +29,6 @@ export default class AuthMiddleware {
 
         // Enforce inactivity timeout for OAT (opaque token) guards
         const oatGuard = auth.use(guard) as any
-        const token = oatGuard.token ?? oatGuard.tokenHash ?? null
         const rawToken: string | undefined =
           oatGuard.parsedToken?.value ?? oatGuard.tokenHash ?? null
 
