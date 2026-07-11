@@ -31,7 +31,7 @@ class GeminiServiceClass {
   }
 
   private get model(): string {
-    return Env.get('GEMINI_MODEL', 'gemini-2.0-flash')
+    return Env.get('GEMINI_MODEL', 'gemini-flash-latest')
   }
 
   /**
