@@ -11,6 +11,8 @@ services:
         value: 3335
       - key: HOST
         value: 0.0.0.0
+      - key: APP_NAME
+        value: wt-payments-server
       - key: APP_KEY
         generateValue: true
       - key: DRIVE_DISK
@@ -52,9 +54,7 @@ services:
       - key: JWT_KEY
         sync: false
       - key: OWNER_EVM_PRIVATE_KEY
-        sync: false
       - key: MASTER_EVM_ADDRESS
-        sync: false
       - key: WEBHOOK_SECRET
         sync: false
       - key: APP_ENV
