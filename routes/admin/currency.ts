@@ -221,4 +221,34 @@ Route.group(() => {
    *                   example: Action failed!
    */
   Route.delete('/delete/:currencyId', 'CurrencyController.deleteCurrency')
+
+  /**
+   * @swagger
+   * /admin/currency/refresh-rates:
+   *   post:
+   *     summary: Refresh all currency rates from CoinGecko
+   *     tags: [Currency (Admin)]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Rates refreshed successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                 message:
+   *                   type: string
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     updated:
+   *                       type: integer
+   *                     total:
+   *                       type: integer
+   */
+  Route.post('/refresh-rates', 'CurrencyRatesController.refreshRates')
 }).prefix('/admin/currency').middleware('auth:admin')

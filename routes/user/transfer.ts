@@ -11,6 +11,9 @@ Route.group(() => {
   // Get conversion quote before transfer
   Route.post('/transfer/quote', 'TransferController.getConversionQuote')
 
+  // Real-time crypto prices from CoinGecko
+  Route.get('/prices', 'TransferController.getPrices')
+
   // Wallet management
   Route.get('/wallets', 'TransferController.getWallets')
   Route.get('/wallet/balance', 'TransferController.getWalletBalance')

@@ -1,5 +1,6 @@
 import Logger from '@ioc:Adonis/Core/Logger'
 import Currency from 'App/Models/Currency'
+import CoinGeckoService from './CoinGeckoService'
 
 interface ConversionResult {
   fromCurrency: string // e.g., USDT
@@ -18,50 +19,97 @@ interface ConversionResult {
  */
 class ConversionServiceClass {
   /**
+   * Get live USD price for a crypto symbol from CoinGecko.
+   * Falls back to DB ratePerUsd if CoinGecko fails.
+   */
+  private async getLiveCryptoUsdPrice(symbol: string): Promise<number> {
+    const upperSymbol = symbol.toUpperCase()
+
+    try {
+      const livePrice = await CoinGeckoService.getPrice(upperSymbol)
+      if (livePrice && livePrice > 0) {
+        Logger.info('[ConversionService] Using live CoinGecko price for %s: %s USD', upperSymbol, livePrice)
+        return livePrice
+      }
+    } catch (error) {
+      Logger.warn('[ConversionService] CoinGecko fetch failed for %s: %s', upperSymbol, error.message)
+    }
+
+    const currency = await Currency.query()
+      .where('symbol', upperSymbol)
+      .where('type', 'CRYPTO')
+      .first()
+
+    if (currency && currency.ratePerUsd > 0) {
+      Logger.info('[ConversionService] Using DB fallback rate for %s: %s', upperSymbol, currency.ratePerUsd)
+      return currency.ratePerUsd
+    }
+
+    throw new Error(`Unable to get USD price for ${upperSymbol}`)
+  }
+
+  /**
+   * Get live fiat-to-USD rate from CoinGecko.
+   * CoinGecko supports many fiat currencies via simple/price endpoint.
+   * Falls back to DB ratePerUsd if CoinGecko fails.
+   */
+  private async getLiveFiatUsdRate(symbol: string): Promise<number> {
+    const upperSymbol = symbol.toUpperCase()
+
+    if (upperSymbol === 'USD') {
+      return 1
+    }
+
+    if (upperSymbol === 'NGN' || upperSymbol === 'USDT' || upperSymbol === 'USDC') {
+      const currency = await Currency.query()
+        .where('symbol', upperSymbol)
+        .where('type', upperSymbol === 'NGN' ? 'FIAT' : 'CRYPTO')
+        .first()
+
+      if (currency && currency.ratePerUsd > 0) {
+        return currency.ratePerUsd
+      }
+    }
+
+    try {
+      const prices = await CoinGeckoService.getPrices([upperSymbol])
+      if (prices[upperSymbol] && prices[upperSymbol] > 0) {
+        return 1 / prices[upperSymbol]
+      }
+    } catch (error) {
+      Logger.warn('[ConversionService] CoinGecko fiat fetch failed for %s: %s', upperSymbol, error.message)
+    }
+
+    const currency = await Currency.query()
+      .where('symbol', upperSymbol)
+      .where('type', 'FIAT')
+      .first()
+
+    if (currency && currency.ratePerUsd > 0) {
+      return currency.ratePerUsd
+    }
+
+    throw new Error(`Unable to get USD rate for ${upperSymbol}`)
+  }
+
+  /**
    * Convert USDT to Naira (NGN)
    * Formula: USDT amount × (NGN/USD rate ÷ USDT/USD rate)
    * Since USDT ≈ 1 USD: naira amount ≈ USDT amount × NGN/USD rate
    */
   async convertUsdtToNaira(
     usdtAmount: number,
-    cryptoNetworkId?: string
+    _cryptoNetworkId?: string
   ): Promise<ConversionResult> {
     try {
       Logger.info(
         `[ConversionService] Converting ${usdtAmount} USDT to NGN`
       )
 
-      // Get USDT currency (typically pegged to USD at 1:1)
-      const query = Currency.query()
-        .where('symbol', 'USDT')
-        .where('type', 'CRYPTO')
+      const usdtRate = await this.getLiveCryptoUsdPrice('USDT')
+      const ngnRate = await this.getLiveFiatUsdRate('NGN')
 
-      if (cryptoNetworkId) {
-        query.where('cryptoNetworkId', cryptoNetworkId)
-      }
-
-      const usdt = await query.first()
-
-      if (!usdt) {
-        throw new Error('USDT currency not found in system')
-      }
-
-      // Get NGN (Naira) currency
-      const ngn = await Currency.query()
-        .where('symbol', 'NGN')
-        .where('type', 'FIAT')
-        .first()
-
-      if (!ngn) {
-        throw new Error('NGN currency not found in system')
-      }
-
-      // Calculate exchange rate
-      // USDT rate is in USD (should be ~1.0)
-      // NGN rate is in USD (e.g., 0.00064 meaning 1 NGN = 0.00064 USD)
-      // So: 1 USDT ≈ 1 USD, and 1 USD ≈ 1/0.00064 NGN
-
-      const ngnPerUsd = 1 / ngn.ratePerUsd
+      const ngnPerUsd = 1 / ngnRate
       const nairaAmount = usdtAmount * ngnPerUsd
 
       Logger.info(
@@ -69,11 +117,11 @@ class ConversionServiceClass {
       )
 
       return {
-        fromCurrency: usdt.symbol,
-        toCurrency: ngn.symbol,
+        fromCurrency: 'USDT',
+        toCurrency: 'NGN',
         fromAmount: usdtAmount,
-        fromRate: usdt.ratePerUsd,
-        toRate: ngn.ratePerUsd,
+        fromRate: usdtRate,
+        toRate: ngnRate,
         exchangeRate: ngnPerUsd,
         toAmount: nairaAmount,
       }
@@ -89,21 +137,8 @@ class ConversionServiceClass {
    */
   async getCurrentExchangeRate(): Promise<number> {
     try {
-      const usdt = await Currency.query()
-        .where('symbol', 'USDT')
-        .where('type', 'CRYPTO')
-        .first()
-
-      const ngn = await Currency.query()
-        .where('symbol', 'NGN')
-        .where('type', 'FIAT')
-        .first()
-
-      if (!usdt || !ngn) {
-        throw new Error('USDT or NGN currency not found')
-      }
-
-      const ngnPerUsd = 1 / ngn.ratePerUsd
+      const ngnRate = await this.getLiveFiatUsdRate('NGN')
+      const ngnPerUsd = 1 / ngnRate
       return parseFloat(ngnPerUsd.toFixed(2))
     } catch (error) {
       Logger.error(`[ConversionService] Failed to get exchange rate: ${error}`)
@@ -136,7 +171,7 @@ class ConversionServiceClass {
   /**
    * Convert CKB to USD
    * CKB is the native token of Nervos blockchain
-   * 1 CKB = rate USD (fetched from Currency model)
+   * Uses real-time CoinGecko price with DB fallback
    */
   async convertCkbToUsd(ckbAmount: number): Promise<number> {
     try {
@@ -144,21 +179,11 @@ class ConversionServiceClass {
         throw new Error('Amount must be greater than 0')
       }
 
-      // Get CKB currency from database
-      const ckb = await Currency.query()
-        .where('symbol', 'CKB')
-        .where('type', 'CRYPTO')
-        .first()
-
-      if (!ckb) {
-        throw new Error('CKB currency not found in system')
-      }
-
-      // Convert: CKB amount × CKB/USD rate
-      const usdAmount = ckbAmount * ckb.ratePerUsd
+      const ckbRate = await this.getLiveCryptoUsdPrice('CKB')
+      const usdAmount = ckbAmount * ckbRate
 
       Logger.info(
-        `[ConversionService] Converted ${ckbAmount} CKB = ${usdAmount.toFixed(6)} USD (rate: 1 CKB = ${ckb.ratePerUsd} USD)`
+        `[ConversionService] Converted ${ckbAmount} CKB = ${usdAmount.toFixed(6)} USD (rate: 1 CKB = ${ckbRate} USD)`
       )
 
       return parseFloat(usdAmount.toFixed(6))
@@ -171,6 +196,7 @@ class ConversionServiceClass {
   /**
    * Convert SUDT token amount to USD
    * SUDT tokens have variable rates like any cryptocurrency
+   * Uses real-time CoinGecko price with DB fallback
    */
   async convertSudtToUsd(sudtAmount: number, sudtSymbol: string): Promise<number> {
     try {
@@ -178,21 +204,11 @@ class ConversionServiceClass {
         throw new Error('Amount must be greater than 0')
       }
 
-      // Look up SUDT token rate
-      const sudt = await Currency.query()
-        .where('symbol', sudtSymbol)
-        .where('type', 'CRYPTO')
-        .first()
-
-      if (!sudt) {
-        throw new Error(`${sudtSymbol} currency not found in system`)
-      }
-
-      // Convert: SUDT amount × SUDT/USD rate
-      const usdAmount = sudtAmount * sudt.ratePerUsd
+      const rate = await this.getLiveCryptoUsdPrice(sudtSymbol)
+      const usdAmount = sudtAmount * rate
 
       Logger.info(
-        `[ConversionService] Converted ${sudtAmount} ${sudtSymbol} = ${usdAmount.toFixed(6)} USD (rate: 1 ${sudtSymbol} = ${sudt.ratePerUsd} USD)`
+        `[ConversionService] Converted ${sudtAmount} ${sudtSymbol} = ${usdAmount.toFixed(6)} USD (rate: 1 ${sudtSymbol} = ${rate} USD)`
       )
 
       return parseFloat(usdAmount.toFixed(6))

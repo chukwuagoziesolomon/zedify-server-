@@ -1185,7 +1185,66 @@ Returns all supported crypto currencies and networks for the payment widget.
 
 ---
 
-## 13. Error Handling
+## 13. Real-Time Prices
+
+### Get crypto/fiat prices
+**`GET /api/user/prices`** 🔒
+
+Query: `symbols` — comma-separated, optional. Default: `CKB,USDT,USDC,NGN`
+
+```bash
+# Default symbols
+GET /api/user/prices
+
+# Custom symbols
+GET /api/user/prices?symbols=CKB,BTC,ETH,NGN
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "CKB": 0.0034,
+    "USDT": 1.0,
+    "USDC": 1.0,
+    "NGN": 0.00064
+  },
+  "cached": false,
+  "timestamp": "2026-07-14T14:00:00.000Z"
+}
+```
+
+Prices are fetched from **CoinGecko** and cached for 1 minute. If CoinGecko fails, falls back to DB rates.
+
+**Supported symbols:** `CKB`, `USDT`, `USDC`, `BTC`, `ETH`, `BNB`, `SOL`, `MATIC`, `AVAX`, `LINK`
+
+---
+
+## 15. Real-Time Updates (SSE)
+
+For live balance updates, payment confirmations, and withdrawal status changes, use Server-Sent Events.
+
+**Full documentation:** [docs/sse-integration.md](./sse-integration.md)
+
+### Connect
+```js
+const es = new EventSource('/api/user/stream', {
+  headers: { Authorization: `Bearer ${token}` }
+})
+```
+
+### Key events to listen for
+| Event | When | Action |
+|---|---|---|
+| `wallet.balance_updated` | Balance changed | Update balance display |
+| `payment.completed` | Payment confirmed | Update payment status |
+| `transaction.confirmed` | Transaction confirmed | Refresh transaction list |
+| `withdrawal.updated` | Withdrawal status changed | Update withdrawal history |
+
+---
+
+## 16. Error Handling
 
 All error responses follow this shape:
 
@@ -1213,7 +1272,7 @@ For validation errors:
 
 ---
 
-## 14. Axios Setup (Recommended)
+## 17. Axios Setup (Recommended)
 
 ```js
 // api.js

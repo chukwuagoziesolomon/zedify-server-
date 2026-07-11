@@ -4,6 +4,7 @@ import Transfer from 'App/Models/Transfer'
 import UserWallet from 'App/Models/UserWallet'
 import TransferService from 'App/Services/TransferService'
 import ConversionService from 'App/Services/ConversionService'
+import CoinGeckoService from 'App/Services/CoinGeckoService'
 import Currency from 'App/Models/Currency'
 import SseService from 'App/Services/SseService'
 
@@ -189,6 +190,41 @@ export default class TransferController {
       return response.internalServerError({
         success: false,
         message: 'Failed to get conversion quote',
+        error: (error as any).message,
+      })
+    }
+  }
+
+  /**
+   * GET /api/user/prices
+   * Get real-time crypto and fiat prices from CoinGecko
+   * Query: symbols=CKB,USDT,USDC,NGN (comma-separated, optional)
+   */
+  async getPrices({ request, response }: HttpContextContract) {
+    try {
+      const symbolsParam = request.input('symbols', 'CKB,USDT,USDC,NGN')
+      const symbols = symbolsParam.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
+
+      if (symbols.length === 0) {
+        return response.badRequest({
+          success: false,
+          message: 'At least one symbol is required',
+        })
+      }
+
+      const prices = await CoinGeckoService.getPrices(symbols)
+
+      return response.ok({
+        success: true,
+        data: prices,
+        cached: false, // CoinGeckoService handles caching internally
+        timestamp: new Date().toISOString(),
+      })
+    } catch (error) {
+      Logger.error(`[TransferController] Get prices failed: ${error}`)
+      return response.internalServerError({
+        success: false,
+        message: 'Failed to fetch prices',
         error: (error as any).message,
       })
     }

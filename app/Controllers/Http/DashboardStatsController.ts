@@ -18,16 +18,19 @@ export default class DashboardStatsController {
 
       const [walletBalanceResult, payoutResult, paymentProcessedResult] = await Promise.all([
         UserWallet.query()
+          .where('userId', user.id)
           .where('status', 'active')
           .sum('balance as total')
           .first(),
 
         Transfer.query()
+          .where('senderUserId', user.id)
           .where('status', 'completed')
           .sum('naira_amount as total')
           .first(),
 
         PaymentIntent.query()
+          .where('businessId', user.uniqueId)
           .where('status', PaymentIntentStatus.PAYMENT_COMPLETED)
           .sum('fiat_amount as total')
           .first(),
