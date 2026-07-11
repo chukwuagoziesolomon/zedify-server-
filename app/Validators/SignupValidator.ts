@@ -24,7 +24,7 @@ export default class SignupValidator {
       rules.regex(/^[0-9]{11}$/),
     ]),
     cac_number: schema.string.optional({ trim: true }, [
-      rules.requiredIf('business_type', 'registered'),
+      rules.requiredWhen('business_type', '=', 'registered'),
       rules.minLength(5),
       rules.maxLength(255),
     ]),
@@ -51,7 +51,7 @@ export default class SignupValidator {
     'business_type.enum': 'Business type must be either starter or registered',
     'bvn.required': 'BVN is required',
     'bvn.regex': 'BVN must be exactly 11 digits',
-    'cac_number.requiredIf': 'CAC number is required for registered businesses',
+    'cac_number.requiredWhen': 'CAC number is required for registered businesses',
     'cac_number.minLength': 'CAC number must be at least 5 characters',
     'cac_number.maxLength': 'CAC number is too long',
   }
