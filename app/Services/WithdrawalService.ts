@@ -54,7 +54,7 @@ export interface WithdrawalFees {
   fiatCurrency?: string
 }
 
-const TRANSACTION_FEE_RATE = 0.05   // 5% platform fee
+const TRANSACTION_FEE_RATE = 0.05   // fallback platform fee (overridden by admin setting)
 const FIAT_TRANSACTION_FEE_RATE = 0.01
 
 class WithdrawalServiceClass {
@@ -64,8 +64,9 @@ class WithdrawalServiceClass {
   // ─── Fee calculation ────────────────────────────────────────────────────────
 
   public calculateFees(amount: number, type: 'crypto' | 'fiat'): WithdrawalFees {
+    const feePercentage = parseFloat(process.env.WITHDRAWAL_FEE_RATE || String(TRANSACTION_FEE_RATE))
     if (type === 'crypto') {
-      const transactionFee = parseFloat((amount * TRANSACTION_FEE_RATE).toFixed(6))
+      const transactionFee = parseFloat((amount * feePercentage).toFixed(6))
       const estimatedNetworkFee = 0 // subsidised by platform; charged separately on-chain
       const amountToReceive = parseFloat((amount - transactionFee - estimatedNetworkFee).toFixed(6))
       return { amount, transactionFee, estimatedNetworkFee, amountToReceive, asset: 'USDT', estimatedArrivalMinutes: 1 }

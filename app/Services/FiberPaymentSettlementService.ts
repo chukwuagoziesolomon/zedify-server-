@@ -10,6 +10,7 @@ import ConversionService from './ConversionService'
 import EmailNotificationService from './EmailNotificationService'
 import SseService from './SseService'
 import { PaymentIntentStatus } from 'App/Lib/types'
+import { getPlatformFeePercentage } from 'App/helpers/utils'
 
 export interface SettlementResult {
   success: boolean
@@ -95,8 +96,9 @@ class FiberPaymentSettlementServiceClass {
         )
       }
 
-      // Deduct platform fee (5%)
-      const platformFee = parseFloat((amountUsdt * 0.05).toFixed(6))
+      // Deduct platform fee (admin-configurable)
+      const platformFeePercentage = await getPlatformFeePercentage()
+      const platformFee = parseFloat((amountUsdt * platformFeePercentage / 100).toFixed(6))
       const amountToReceive = parseFloat((amountUsdt - platformFee).toFixed(6))
 
       Logger.info(

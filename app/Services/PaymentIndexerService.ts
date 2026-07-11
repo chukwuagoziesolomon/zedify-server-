@@ -406,7 +406,7 @@ export class PaymentIndexerService {
     }
   }
 
-  /** Push SSE events after a payment is confirmed: transaction.confirmed + wallet.balance_updated */
+  /** Push SSE events after a payment is confirmed: transaction.confirmed + wallet.balance_updated + order.payment_received */
   private async emitPaymentConfirmedSSE(paymentIntent: PaymentIntent): Promise<void> {
     try {
       // 1. transaction.confirmed
@@ -437,6 +437,19 @@ export class PaymentIndexerService {
             balance: Number(w.balance),
             currency_id: w.currencyId,
           })),
+        },
+      })
+
+      // 3. order.payment_received — customer-facing order confirmation
+      SseService.emit(paymentIntent.businessId, {
+        event: 'order.payment_received',
+        data: {
+          payment_intent_id: paymentIntent.uniqueId,
+          reference_id: paymentIntent.businessReferenceId,
+          fiat_amount: paymentIntent.fiatAmount,
+          fiat_currency_id: paymentIntent.fiatCurrencyId,
+          status: paymentIntent.status,
+          completed_at: paymentIntent.completedAt?.toISO() ?? null,
         },
       })
     } catch (err) {

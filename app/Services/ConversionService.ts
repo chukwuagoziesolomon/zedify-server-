@@ -1,6 +1,7 @@
 import Logger from '@ioc:Adonis/Core/Logger'
 import Currency from 'App/Models/Currency'
 import CoinGeckoService from './CoinGeckoService'
+import { getPlatformFeePercentage } from 'App/helpers/utils'
 
 interface ConversionResult {
   fromCurrency: string // e.g., USDT
@@ -219,9 +220,10 @@ class ConversionServiceClass {
   }
 
   /**
-   * Calculate platform fee (default 5%)
+   * Calculate platform fee (admin-configurable, default 5%)
    */
-  calculatePlatformFee(usdAmount: number, feePercentage: number = 5): number {
+  async calculatePlatformFee(usdAmount: number): Promise<number> {
+    const feePercentage = await getPlatformFeePercentage()
     const fee = (usdAmount * feePercentage) / 100
     return parseFloat(fee.toFixed(2))
   }
@@ -229,8 +231,8 @@ class ConversionServiceClass {
   /**
    * Calculate net amount after platform fee
    */
-  calculateNetAmount(usdAmount: number, feePercentage: number = 5): number {
-    const fee = this.calculatePlatformFee(usdAmount, feePercentage)
+  async calculateNetAmount(usdAmount: number): Promise<number> {
+    const fee = await this.calculatePlatformFee(usdAmount)
     const net = usdAmount - fee
     return parseFloat(net.toFixed(2))
   }

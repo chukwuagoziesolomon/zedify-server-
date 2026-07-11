@@ -29,6 +29,7 @@ import '../routes/user/wallet'
 import '../routes/user/shop_builder'
 import '../routes/user/shop_products'
 import '../routes/user/shop_customization'
+import '../routes/user/cart'
 
 // Webhook routes for payment confirmations
 import '../routes/webhooks'

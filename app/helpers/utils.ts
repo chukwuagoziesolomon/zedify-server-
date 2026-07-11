@@ -249,3 +249,24 @@ export function roundToTwoDecimalPlace(number, decimalPlaces = 2) {
   const factor = Math.pow(10, decimalPlaces);
   return Math.round(number * factor) / factor;
 }
+
+let cachedFeePercentage: number | null = null
+let cachedFeeExpiresAt = 0
+
+export async function getPlatformFeePercentage(): Promise<number> {
+  const now = Date.now()
+  if (cachedFeePercentage !== null && now < cachedFeeExpiresAt) {
+    return cachedFeePercentage
+  }
+
+  const SystemSetting = (await import('App/Models/SystemSetting')).default
+  const setting = await SystemSetting.query().first()
+  cachedFeePercentage = setting ? Number(setting.platformFeePercentage) : 5
+  cachedFeeExpiresAt = now + 60_000
+  return cachedFeePercentage
+}
+
+export function clearPlatformFeeCache() {
+  cachedFeePercentage = null
+  cachedFeeExpiresAt = 0
+}

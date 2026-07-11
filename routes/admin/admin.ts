@@ -133,3 +133,8 @@ Route.group(() => {
   Route.patch('/users/:userId/unverify', 'AuthAdminController.unverifyUser')
 
 }).prefix('/admin/admin-account').middleware('auth:admin')
+
+Route.group(() => {
+  Route.get('/system-settings', 'SystemSettingsController.show')
+  Route.patch('/system-settings', 'SystemSettingsController.update')
+}).prefix('/admin').middleware('auth:admin')

@@ -1,0 +1,386 @@
+import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
+import { formatErrorMessage, formatSuccessMessage } from 'App/helpers/utils'
+import RolesController from './RolesController'
+import Cart from 'App/Models/Cart'
+import CartItem from 'App/Models/CartItem'
+import ShopProduct from 'App/Models/ShopProduct'
+import Shop from 'App/Models/Shop'
+import PaymentIntent from 'App/Models/PaymentIntent'
+import Currency from 'App/Models/Currency'
+import CryptoNetwork from 'App/Models/CryptoNetwork'
+import BusinessCurrency from 'App/Models/BusinessCurrency'
+import User from 'App/Models/User'
+import { genRandomUuid } from 'App/helpers/utils'
+import { PaymentIntentStatus } from 'App/Lib/types'
+import { CurrencyType } from 'App/Lib/types'
+import SseService from 'App/Services/SseService'
+import { NotificationService } from 'App/Lib/notification/notification'
+import Logger from '@ioc:Adonis/Core/Logger'
+
+export default class CartController extends RolesController {
+  private notifier = new NotificationService()
+
+  private async emitCartEvent(userId: string, event: string, data: any) {
+    SseService.emit(userId, { event: event as any, data })
+  }
+
+  private async sendCartEmail(user: User, subject: string, template: string, replacements: Record<string, any>) {
+    try {
+      await this.notifier.sendEmail({
+        to: user.email,
+        subject,
+        template,
+        replacements: {
+          businessName: user.businessName || user.email,
+          year: new Date().getFullYear(),
+          ...replacements,
+        },
+      })
+    } catch (emailErr: any) {
+      Logger.warn(`[Cart] Email failed: ${emailErr.message}`)
+    }
+  }
+  /**
+   * GET /api/user/cart
+   * Returns the authenticated user's cart with items and totals.
+   */
+  public async show({ auth, response }: HttpContextContract) {
+    try {
+      const userId = this.allowOnlyLoggedInUsers(auth)
+      const cart = await Cart.query().where('userId', userId).first()
+
+      if (!cart) {
+        return response.ok(formatSuccessMessage('Cart retrieved', { cart: null, items: [], total: 0 }))
+      }
+
+      const items = await CartItem.query()
+        .where('cartId', cart.uniqueId)
+        .preload('product', (productQuery) => {
+          productQuery.select('uniqueId', 'shopId', 'name', 'price', 'currency', 'images', 'stock', 'isActive')
+        })
+
+      const itemsWithDetails = items.map((item) => {
+        const product = item.product as any
+        if (!product) return null
+
+        const shop = product.$parent?.shop as any
+        const shopData = shop || { uniqueId: product.shopId }
+
+        return {
+          id: item.uniqueId,
+          product_id: product.uniqueId,
+          name: product.name,
+          price: product.price,
+          currency: product.currency,
+          quantity: item.quantity,
+          image: product.images?.[0]?.url || null,
+          stock: product.stock,
+          is_active: product.isActive,
+          shop_id: shopData.uniqueId || product.shopId,
+        }
+      }).filter(Boolean)
+
+      const total = itemsWithDetails.reduce((sum, item: any) => sum + item.price * item.quantity, 0)
+
+      return response.ok(formatSuccessMessage('Cart retrieved', {
+        cart_id: cart.uniqueId,
+        items: itemsWithDetails,
+        total,
+        currency: itemsWithDetails[0]?.currency || 'NGN',
+        item_count: itemsWithDetails.length,
+      }))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * POST /api/user/cart/items
+   * Add a product to the user's cart.
+   * Body: { product_id, quantity? }
+   */
+  public async addItem({ auth, request, response }: HttpContextContract) {
+    try {
+      const userId = this.allowOnlyLoggedInUsers(auth)
+      const { product_id, quantity = 1 } = request.only(['product_id', 'quantity'])
+
+      if (!product_id) throw new Error('product_id is required.')
+      if (quantity < 1) throw new Error('quantity must be at least 1.')
+
+      const product = await ShopProduct.query()
+        .where('uniqueId', product_id)
+        .where('isActive', true)
+        .firstOrFail()
+
+      let cart = await Cart.query().where('userId', userId).first()
+      if (!cart) {
+        cart = await Cart.create({
+          uniqueId: genRandomUuid(),
+          userId,
+        })
+      }
+
+      const existingItem = await CartItem.query()
+        .where('cartId', cart.uniqueId)
+        .where('productId', product_id)
+        .first()
+
+      if (existingItem) {
+        existingItem.quantity = Math.min(existingItem.quantity + quantity, product.stock)
+        await existingItem.save()
+      } else {
+        await CartItem.create({
+          uniqueId: genRandomUuid(),
+          cartId: cart.uniqueId,
+          productId: product_id,
+          quantity: Math.min(quantity, product.stock),
+        })
+      }
+
+      await this.emitCartEvent(userId, 'cart.item_added', {
+        product_id,
+        quantity: Math.min(quantity, product.stock),
+        product_name: product.name,
+        cart_id: cart.uniqueId,
+      })
+
+      return response.ok(formatSuccessMessage('Item added to cart', null))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * PUT /api/user/cart/items/:itemId
+   * Update quantity of a cart item.
+   * Body: { quantity }
+   */
+  public async updateItem({ auth, request, response, params }: HttpContextContract) {
+    try {
+      const userId = this.allowOnlyLoggedInUsers(auth)
+      const { quantity } = request.only(['quantity'])
+
+      if (quantity === undefined || quantity === null) throw new Error('quantity is required.')
+      if (quantity < 1) throw new Error('quantity must be at least 1.')
+
+      const cart = await Cart.query().where('userId', userId).firstOrFail()
+      const item = await CartItem.query()
+        .where('uniqueId', params.itemId)
+        .where('cartId', cart.uniqueId)
+        .firstOrFail()
+
+      const product = await ShopProduct.query().where('uniqueId', item.productId).firstOrFail()
+      item.quantity = Math.min(quantity, product.stock)
+      await item.save()
+
+      await this.emitCartEvent(userId, 'cart.updated', {
+        item_id: item.uniqueId,
+        quantity: item.quantity,
+        cart_id: cart.uniqueId,
+      })
+
+      return response.ok(formatSuccessMessage('Cart item updated', null))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * DELETE /api/user/cart/items/:itemId
+   * Remove an item from the cart.
+   */
+  public async removeItem({ auth, response, params }: HttpContextContract) {
+    try {
+      const userId = this.allowOnlyLoggedInUsers(auth)
+      const cart = await Cart.query().where('userId', userId).firstOrFail()
+      const item = await CartItem.query()
+        .where('uniqueId', params.itemId)
+        .where('cartId', cart.uniqueId)
+        .firstOrFail()
+
+      await item.delete()
+
+      await this.emitCartEvent(userId, 'cart.item_removed', {
+        item_id: params.itemId,
+        cart_id: cart.uniqueId,
+      })
+
+      return response.ok(formatSuccessMessage('Item removed from cart', null))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * DELETE /api/user/cart
+   * Clear all items from the user's cart.
+   */
+  public async clear({ auth, response }: HttpContextContract) {
+    try {
+      const userId = this.allowOnlyLoggedInUsers(auth)
+      const cart = await Cart.query().where('userId', userId).first()
+
+      if (cart) {
+        await CartItem.query().where('cartId', cart.uniqueId).delete()
+      }
+
+      await this.emitCartEvent(userId, 'cart.cleared', {
+        cart_id: cart?.uniqueId || null,
+      })
+
+      return response.ok(formatSuccessMessage('Cart cleared', null))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * POST /api/user/cart/checkout
+   * Create a PaymentIntent from the cart items.
+   * Body: { fiat_currency?, payment_method? }
+   * payment_method: 'crypto' | 'paystack'
+   * Returns: reference_id + available crypto currencies + wallet address or paystack url.
+   */
+  public async checkout({ auth, request, response }: HttpContextContract) {
+    try {
+      const userId = this.allowOnlyLoggedInUsers(auth)
+      const { fiat_currency, payment_method = 'crypto' } = request.only(['fiat_currency', 'payment_method'])
+
+      const cart = await Cart.query().where('userId', userId).firstOrFail()
+      const items = await CartItem.query()
+        .where('cartId', cart.uniqueId)
+        .preload('product', (productQuery) => {
+          productQuery.select('uniqueId', 'shopId', 'name', 'price', 'currency', 'isActive')
+        })
+
+      if (items.length === 0) {
+        throw new Error('Your cart is empty.')
+      }
+
+      const shopIds = [...new Set(items.map((item) => (item.product as any).shopId))]
+      if (shopIds.length > 1) {
+        throw new Error('Checkout is limited to one shop at a time. Please clear your cart or checkout with items from a single shop.')
+      }
+
+      const shopId = shopIds[0]
+      const shop = await Shop.query().where('uniqueId', shopId).firstOrFail()
+
+      const fiatCurrency = fiat_currency || shop.currency || 'NGN'
+      const currencyRecord = await Currency.query().where('symbol', fiatCurrency.toUpperCase()).first()
+      if (!currencyRecord) throw new Error(`Unsupported fiat currency: ${fiatCurrency}`)
+
+      const fiatAmount = items.reduce((sum, item) => {
+        const product = item.product as any
+        return sum + product.price * item.quantity
+      }, 0)
+
+      if (fiatAmount <= 0) throw new Error('Cart total must be greater than 0.')
+
+      const referenceId = genRandomUuid()
+      const intent = await PaymentIntent.create({
+        uniqueId: genRandomUuid(),
+        businessId: shop.userId,
+        businessReferenceId: referenceId,
+        fiatCurrencyId: currencyRecord.uniqueId,
+        fiatAmount,
+        status: PaymentIntentStatus.PAYMENT_CREATED,
+      })
+
+      if (payment_method === 'paystack') {
+        const PaystackChargeService = (await import('App/Services/PaystackChargeService')).default
+        const user = await User.query().where('uniqueId', userId).firstOrFail()
+        const charge = await PaystackChargeService.initializeCharge({
+          email: user.email,
+          amountNaira: fiatAmount,
+          reference: referenceId,
+          metadata: {
+            payment_intent_id: intent.uniqueId,
+            shop_id: shop.uniqueId,
+            items_count: items.length,
+          },
+        })
+
+        await this.emitCartEvent(userId, 'cart.checkout_completed', {
+          payment_method: 'paystack',
+          reference_id: referenceId,
+          authorization_url: charge.authorizationUrl,
+          fiat_amount: fiatAmount,
+          fiat_currency: currencyRecord.symbol,
+        })
+
+        await this.sendCartEmail(user, 'Order Placed – Complete Payment', 'order_placed', {
+          referenceId,
+          fiatAmount: fiatAmount.toFixed(2),
+          fiatCurrency: currencyRecord.symbol,
+          authorizationUrl: charge.authorizationUrl,
+          shopName: shop.businessName,
+          itemsCount: items.length,
+        })
+
+        return response.ok(formatSuccessMessage('Checkout session created', {
+          payment_method: 'paystack',
+          payment_intent_id: intent.uniqueId,
+          reference_id: referenceId,
+          authorization_url: charge.authorizationUrl,
+          fiat_amount: fiatAmount,
+          fiat_currency: currencyRecord.symbol,
+          shop_id: shop.uniqueId,
+          items_count: items.length,
+        }))
+      }
+
+      const activeCurrencies = await BusinessCurrency.query().where('businessId', shop.userId)
+      const assets = await Promise.all(
+        activeCurrencies.map(async (bc) => {
+          const currency = await Currency.query().where('uniqueId', bc.currencyId).first()
+          let network: { name: string; logo: string } | null = null
+          let amount = 0
+
+          if (currency && currency.type === CurrencyType.CRYPTO) {
+            const cryptoNetwork = await CryptoNetwork.query().where('uniqueId', currency.cryptoNetworkId).first()
+            if (cryptoNetwork) network = { name: cryptoNetwork.name, logo: cryptoNetwork.logo }
+            amount = fiatAmount
+          }
+
+          return {
+            currency_id: currency?.uniqueId || '',
+            name: currency?.name || '',
+            symbol: currency?.symbol || '',
+            logo: currency?.logo || '',
+            network,
+            amount,
+          }
+        })
+      )
+
+      await this.emitCartEvent(userId, 'cart.checkout_completed', {
+        payment_method: 'crypto',
+        reference_id: referenceId,
+        fiat_amount: fiatAmount,
+        fiat_currency: currencyRecord.symbol,
+        assets: assets.length,
+      })
+
+      const user = await User.query().where('uniqueId', userId).firstOrFail()
+      await this.sendCartEmail(user, 'Order Placed – Complete Crypto Payment', 'order_placed', {
+        referenceId,
+        fiatAmount: fiatAmount.toFixed(2),
+        fiatCurrency: currencyRecord.symbol,
+        shopName: shop.businessName,
+        itemsCount: items.length,
+      })
+
+      return response.ok(formatSuccessMessage('Checkout session created', {
+        payment_intent_id: intent.uniqueId,
+        reference_id: referenceId,
+        fiat_amount: fiatAmount,
+        fiat_currency: currencyRecord.symbol,
+        shop_id: shop.uniqueId,
+        items_count: items.length,
+        assets,
+      }))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+}

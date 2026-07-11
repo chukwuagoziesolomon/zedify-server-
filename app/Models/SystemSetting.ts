@@ -10,6 +10,9 @@ export default class SystemSetting extends BaseModel {
   @column()
   public durationPerTransaction: number
 
+  @column()
+  public platformFeePercentage: number = 5
+
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime
 

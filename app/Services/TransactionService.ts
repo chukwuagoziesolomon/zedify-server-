@@ -3,6 +3,7 @@ import Database from '@ioc:Adonis/Lucid/Database'
 import { DateTime } from 'luxon'
 import Transaction from 'App/Models/Transaction'
 import UserWallet from 'App/Models/UserWallet'
+import { getPlatformFeePercentage } from 'App/helpers/utils'
 
 export interface CreateReceiveTransactionInput {
   userId: number
@@ -75,7 +76,9 @@ class TransactionServiceClass {
         `[TransactionService] Creating receive transaction: ${input.amountCrypto} ${input.currencyId} to ${input.walletAddressGenerated}`
       )
 
-      const netAmountUsd = input.amountUsd * 0.95 // 5% fee deducted
+      const feePercentage = await getPlatformFeePercentage()
+      const platformFeeUsd = parseFloat((input.amountUsd * feePercentage / 100).toFixed(2))
+      const netAmountUsd = parseFloat((input.amountUsd - platformFeeUsd).toFixed(2))
 
       const transaction = await Transaction.create({
         userId: input.userId,
@@ -86,7 +89,7 @@ class TransactionServiceClass {
         currencyId: input.currencyId,
         amountCrypto: input.amountCrypto,
         amountUsd: input.amountUsd,
-        platformFeeUsd: input.amountUsd * 0.05,
+        platformFeeUsd,
         netAmountUsd,
         walletAddressGenerated: input.walletAddressGenerated,
         qrCodeData: input.qrCodeData,

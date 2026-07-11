@@ -165,7 +165,8 @@ export default class ShopProductController extends RolesController {
         .where('shopId', shop.uniqueId)
         .firstOrFail()
 
-      const files = request.files('images', { size: '5mb', extnames: ['jpg', 'jpeg', 'png', 'webp'] })
+      const rawFiles = request.files('images', { size: '5mb', extnames: ['jpg', 'jpeg', 'png', 'webp'] })
+      const files = Array.isArray(rawFiles) ? rawFiles : rawFiles ? [rawFiles] : []
       if (!files || files.length === 0) throw new Error('At least one image is required.')
 
       const features = shop.features || getDefaultFeatures(shop.template || 'yanga-default')

@@ -10,6 +10,11 @@ export type SseEvent =
   | 'payment.completed'
   | 'shop.customization_unlocked'
   | 'wallet.deposit_credited'
+  | 'cart.updated'
+  | 'cart.item_added'
+  | 'cart.item_removed'
+  | 'cart.checkout_completed'
+  | 'order.payment_received'
 
 export interface SseMessage<T = any> {
   event: SseEvent
