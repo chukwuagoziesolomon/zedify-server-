@@ -4,6 +4,7 @@ import Logger from '@ioc:Adonis/Core/Logger'
 import Env from '@ioc:Adonis/Core/Env'
 import { DateTime } from 'luxon'
 import PaymentIntent from 'App/Models/PaymentIntent'
+import Shop from 'App/Models/Shop'
 import Wallet from 'App/Models/Wallet'
 import Currency from 'App/Models/Currency'
 import UserWallet from 'App/Models/UserWallet'
@@ -13,6 +14,11 @@ import SettlementService from './SettlementService'
 import SseService from './SseService'
 import WebhookDispatcherService from './WebhookDispatcherService'
 import { PaymentIntentStatus } from 'App/Lib/types'
+import { resolvePaymentFlowStrategy } from 'App/helpers/cryptoCurrencySelection'
+import FiberService from './FiberService'
+import FiberInvoiceService from './FiberInvoiceService'
+import FiberPaymentSettlementService from './FiberPaymentSettlementService'
+import CKBService from './CKBService'
 
 interface WebhookPayload {
   txHash: string
@@ -26,6 +32,13 @@ interface WebhookPayload {
 }
 
 export class PaymentIndexerService {
+  private isFiberInvoiceNetwork(network: any): boolean {
+    const networkType = String(network?.networkType || '').toLowerCase()
+    const chainKey = String(network?.chainKey || '').toLowerCase()
+
+    return networkType === 'ckb' && ['fiber-testnet', 'fiber-mainnet', 'fiber-devnet'].includes(chainKey)
+  }
+
   /**
    * Process webhook event from third-party service (e.g., Alchemy)
    * Real-time payment confirmation
@@ -58,6 +71,12 @@ export class PaymentIndexerService {
         .firstOrFail()
 
       const network = cryptoCurrency.cryptoNetwork
+
+      if (this.isFiberInvoiceNetwork(network)) {
+        Logger.info(`[PaymentIndexer] Webhook received for Fiber invoice network ${network.name}`)
+        await this.checkFiberInvoiceStatus(paymentIntent)
+        return
+      }
 
       // Only handle EVM networks here
       if (network.networkType !== 'evm') {
@@ -128,6 +147,19 @@ export class PaymentIndexerService {
     }
   }
 
+  private async findWalletForPaymentIntent(paymentIntent: PaymentIntent): Promise<Wallet | null> {
+    if (!paymentIntent.walletId) return null
+
+    const wallet = await Wallet.query().where('uniqueId', paymentIntent.walletId).first()
+    if (wallet) return wallet
+
+    if (/^\d+$/.test(String(paymentIntent.walletId))) {
+      return Wallet.find(Number(paymentIntent.walletId))
+    }
+
+    return null
+  }
+
   /**
    * Check if payment has been received for a specific intent
    */
@@ -135,7 +167,7 @@ export class PaymentIndexerService {
     try {
       if (!paymentIntent.walletId || !paymentIntent.cryptoCurrencyId) return
 
-      const wallet = await Wallet.find(paymentIntent.walletId)
+      const wallet = await this.findWalletForPaymentIntent(paymentIntent)
       if (!wallet) {
         Logger.warn(`[PaymentIndexer] Wallet not found for intent ${paymentIntent.uniqueId}`)
         return
@@ -152,8 +184,19 @@ export class PaymentIndexerService {
       }
 
       const network = cryptoCurrency.cryptoNetwork
+      const paymentFlowStrategy = resolvePaymentFlowStrategy(network)
 
-      // Only poll EVM networks; CKB uses its own polling path
+      if (paymentFlowStrategy === 'fiber_invoice') {
+        await this.checkFiberInvoiceStatus(paymentIntent)
+        return
+      }
+
+      // Only poll EVM or generic CKB networks here
+      if (network.networkType === 'ckb') {
+        await this.checkCkbPaymentStatus(paymentIntent, wallet, cryptoCurrency, network)
+        return
+      }
+
       if (network.networkType !== 'evm') return
 
       // Check balance — ERC-20 if contractAddress is set, otherwise native
@@ -185,13 +228,90 @@ export class PaymentIndexerService {
     }
   }
 
+  private async checkCkbPaymentStatus(
+    paymentIntent: PaymentIntent,
+    wallet: Wallet,
+    _cryptoCurrency: Currency,
+    network: any
+  ): Promise<void> {
+    try {
+      if (this.isFiberInvoiceNetwork(network)) {
+        await this.checkFiberInvoiceStatus(paymentIntent)
+        return
+      }
+
+      await CKBService.initialize()
+      const balance = await CKBService.getBalance(wallet.walletAddress)
+
+      const expectedAmount = paymentIntent.feeInCrypto ?? 0
+      const balanceNum = parseFloat(balance.balanceCkb)
+
+      if (balanceNum >= expectedAmount) {
+        Logger.info(
+          `[PaymentIndexer] CKB payment found for intent ${paymentIntent.uniqueId}: ${balance.balanceCkb} CKB`
+        )
+
+        paymentIntent.status = PaymentIntentStatus.AWAITING_CONFIRMATION
+        paymentIntent.receivedPaymentAt = DateTime.now()
+        await paymentIntent.save()
+
+        await this.onPaymentConfirmed(paymentIntent, wallet, 'polled')
+      }
+    } catch (error) {
+      Logger.warn(
+        `[PaymentIndexer] CKB payment check failed for intent ${paymentIntent.uniqueId}: ${error}`
+      )
+    }
+  }
+
+  private async checkFiberInvoiceStatus(paymentIntent: PaymentIntent): Promise<void> {
+    try {
+      const fiberInvoice = await FiberInvoiceService.getInvoiceByIntent(paymentIntent.uniqueId)
+      if (!fiberInvoice) {
+        Logger.info(`[PaymentIndexer] No Fiber invoice for intent ${paymentIntent.uniqueId}`)
+        return
+      }
+
+      if (fiberInvoice.status !== 'pending') {
+        return
+      }
+
+      const result = await FiberService.getPaymentStatus(fiberInvoice.invoiceAddress)
+      if (!result) {
+        return
+      }
+
+      const isPaid = result.status === 'succeeded' || result.status === 'completed'
+      if (!isPaid) {
+        return
+      }
+
+      Logger.info(
+        `[PaymentIndexer] Fiber invoice paid for intent ${paymentIntent.uniqueId}: ${result.paymentHash}`
+      )
+
+      await FiberInvoiceService.markPaid(fiberInvoice.uniqueId, result.paymentHash)
+
+      paymentIntent.status = PaymentIntentStatus.AWAITING_CONFIRMATION
+      paymentIntent.receivedPaymentAt = DateTime.now()
+      await paymentIntent.save()
+
+      // Trigger Fiber settlement
+      await this.onFiberPaymentConfirmed(paymentIntent, fiberInvoice, result.paymentHash)
+    } catch (error) {
+      Logger.warn(
+        `[PaymentIndexer] Fiber invoice check failed for intent ${paymentIntent.uniqueId}: ${error}`
+      )
+    }
+  }
+
   /**
    * Triggered after payment is confirmed
    * Handles webhooks, emails, and settlement
    */
   private async onPaymentConfirmed(
     paymentIntent: PaymentIntent,
-    wallet: Wallet,
+    wallet: Wallet | null,
     txHash: string
   ): Promise<void> {
     try {
@@ -203,6 +323,9 @@ export class PaymentIndexerService {
         paymentIntent.completedAt = DateTime.now()
         await paymentIntent.useTransaction(trx).save()
 
+        // Unlock AI customization access if this payment was for a custom shop upgrade.
+        await this.unlockCustomShopAccess(paymentIntent)
+
         // Emit webhook to business
         await this.dispatchWebhook(paymentIntent, txHash)
 
@@ -211,8 +334,10 @@ export class PaymentIndexerService {
         // Send email notifications (after transaction commits)
         await this.sendEmailNotifications(paymentIntent, txHash)
 
-        // Flush funds from child wallet to master wallet
-        await this.scheduleSettlement(wallet, paymentIntent.uniqueId)
+        // Flush funds from child wallet to master wallet (skip for Fiber/invoice-based payments)
+        if (wallet) {
+          await this.scheduleSettlement(wallet, paymentIntent.uniqueId)
+        }
 
         // Push real-time SSE events to the business owner
         this.emitPaymentConfirmedSSE(paymentIntent).catch(() => {})
@@ -304,9 +429,15 @@ export class PaymentIndexerService {
     txHash: string
   ): Promise<void> {
     try {
-      const currency = await Currency.findOrFail(paymentIntent.cryptoCurrencyId)
-      const fiatCurrency = await Currency.findOrFail(paymentIntent.fiatCurrencyId)
-      const wallet = await Wallet.findOrFail(paymentIntent.walletId)
+      // Guard against null IDs
+      if (!paymentIntent.cryptoCurrencyId || !paymentIntent.fiatCurrencyId || !paymentIntent.walletId) {
+        Logger.error('Cannot send notifications: missing currency or wallet ID', { paymentIntentId: paymentIntent.uniqueId })
+        return
+      }
+
+      const currency = await Currency.query().where('uniqueId', paymentIntent.cryptoCurrencyId).firstOrFail()
+      const fiatCurrency = await Currency.query().where('uniqueId', paymentIntent.fiatCurrencyId).firstOrFail()
+      const wallet = await Wallet.query().where('uniqueId', paymentIntent.walletId).firstOrFail()
 
       const cryptoAmount = parseFloat((paymentIntent.fiatAmount / currency.ratePerUsd).toFixed(8))
 
@@ -342,6 +473,73 @@ export class PaymentIndexerService {
         `[PaymentIndexer] Failed to send email notifications: ${error}`
       )
       // Don't fail the entire flow if email fails
+    }
+  }
+
+  /**
+   * Handle Fiber payment confirmation
+   * Settles the payment by converting CKB/SUDT to USDT
+   */
+  private async onFiberPaymentConfirmed(
+    paymentIntent: PaymentIntent,
+    fiberInvoice: any,
+    txHash: string
+  ): Promise<void> {
+    try {
+      Logger.info(
+        `[PaymentIndexer] Processing Fiber payment confirmation: ${paymentIntent.uniqueId}`
+      )
+
+      // Mark payment intent as completed
+      paymentIntent.status = PaymentIntentStatus.PAYMENT_COMPLETED
+      paymentIntent.completedAt = DateTime.now()
+      await paymentIntent.save()
+
+      // Trigger settlement (convert CKB/SUDT to USDT and add to business wallet)
+      await FiberPaymentSettlementService.settleFiberPayment(fiberInvoice.uniqueId).catch(
+        (err) => {
+          Logger.error(
+            `[PaymentIndexer] Fiber settlement failed: ${err.message}`
+          )
+        }
+      )
+
+      await this.unlockCustomShopAccess(paymentIntent).catch(() => {})
+
+      // Emit webhook to business
+      await this.dispatchWebhook(paymentIntent, txHash).catch(() => {})
+
+      // Push real-time SSE events
+      this.emitPaymentConfirmedSSE(paymentIntent).catch(() => {})
+
+      Logger.info(
+        `[PaymentIndexer] Fiber payment processed: ${paymentIntent.uniqueId}`
+      )
+    } catch (error: any) {
+      Logger.error(
+        `[PaymentIndexer] Failed to process Fiber payment: ${error.message}`
+      )
+    }
+  }
+
+  private async unlockCustomShopAccess(paymentIntent: PaymentIntent): Promise<void> {
+    try {
+      if (!paymentIntent.businessId || !paymentIntent.businessReferenceId) return
+
+      const shop = await Shop.query()
+        .where('userId', paymentIntent.businessId)
+        .where('customizationPaymentReferenceId', paymentIntent.businessReferenceId)
+        .first()
+
+      if (!shop || shop.customizationAccessPaid) return
+
+      shop.customizationAccessPaid = true
+      shop.customizationAccessPaidAt = DateTime.now()
+      await shop.save()
+
+      Logger.info(`[PaymentIndexer] Unlocked AI customization for shop ${shop.uniqueId}`)
+    } catch (error) {
+      Logger.warn(`[PaymentIndexer] Failed to unlock custom shop access: ${error}`)
     }
   }
 

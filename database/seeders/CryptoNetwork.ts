@@ -129,6 +129,15 @@ export default class extends BaseSeeder {
         networkType: 'ckb',
         chainId: null,
       },
+      {
+        name: 'Fiber Testnet',
+        logo: 'https://cryptologos.cc/logos/nervos-network-ckb-logo.png',
+        rpcUrl: Env.get('FIBER_NODE_URL', 'http://127.0.0.1:8227'),
+        isTestnet: true,
+        chainKey: 'fiber-testnet',
+        networkType: 'ckb',
+        chainId: null,
+      },
     ])
 
     console.log('✅ CryptoNetwork seeder completed')

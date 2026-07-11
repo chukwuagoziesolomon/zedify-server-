@@ -132,6 +132,92 @@ class ConversionServiceClass {
       return false
     }
   }
+
+  /**
+   * Convert CKB to USD
+   * CKB is the native token of Nervos blockchain
+   * 1 CKB = rate USD (fetched from Currency model)
+   */
+  async convertCkbToUsd(ckbAmount: number): Promise<number> {
+    try {
+      if (ckbAmount <= 0) {
+        throw new Error('Amount must be greater than 0')
+      }
+
+      // Get CKB currency from database
+      const ckb = await Currency.query()
+        .where('symbol', 'CKB')
+        .where('type', 'CRYPTO')
+        .first()
+
+      if (!ckb) {
+        throw new Error('CKB currency not found in system')
+      }
+
+      // Convert: CKB amount × CKB/USD rate
+      const usdAmount = ckbAmount * ckb.ratePerUsd
+
+      Logger.info(
+        `[ConversionService] Converted ${ckbAmount} CKB = ${usdAmount.toFixed(6)} USD (rate: 1 CKB = ${ckb.ratePerUsd} USD)`
+      )
+
+      return parseFloat(usdAmount.toFixed(6))
+    } catch (error) {
+      Logger.error(`[ConversionService] CKB conversion failed: ${error}`)
+      throw error
+    }
+  }
+
+  /**
+   * Convert SUDT token amount to USD
+   * SUDT tokens have variable rates like any cryptocurrency
+   */
+  async convertSudtToUsd(sudtAmount: number, sudtSymbol: string): Promise<number> {
+    try {
+      if (sudtAmount <= 0) {
+        throw new Error('Amount must be greater than 0')
+      }
+
+      // Look up SUDT token rate
+      const sudt = await Currency.query()
+        .where('symbol', sudtSymbol)
+        .where('type', 'CRYPTO')
+        .first()
+
+      if (!sudt) {
+        throw new Error(`${sudtSymbol} currency not found in system`)
+      }
+
+      // Convert: SUDT amount × SUDT/USD rate
+      const usdAmount = sudtAmount * sudt.ratePerUsd
+
+      Logger.info(
+        `[ConversionService] Converted ${sudtAmount} ${sudtSymbol} = ${usdAmount.toFixed(6)} USD (rate: 1 ${sudtSymbol} = ${sudt.ratePerUsd} USD)`
+      )
+
+      return parseFloat(usdAmount.toFixed(6))
+    } catch (error) {
+      Logger.error(`[ConversionService] SUDT conversion failed: ${error}`)
+      throw error
+    }
+  }
+
+  /**
+   * Calculate platform fee (default 5%)
+   */
+  calculatePlatformFee(usdAmount: number, feePercentage: number = 5): number {
+    const fee = (usdAmount * feePercentage) / 100
+    return parseFloat(fee.toFixed(2))
+  }
+
+  /**
+   * Calculate net amount after platform fee
+   */
+  calculateNetAmount(usdAmount: number, feePercentage: number = 5): number {
+    const fee = this.calculatePlatformFee(usdAmount, feePercentage)
+    const net = usdAmount - fee
+    return parseFloat(net.toFixed(2))
+  }
 }
 
 export default new ConversionServiceClass()

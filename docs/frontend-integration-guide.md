@@ -391,7 +391,7 @@ All fields optional:
 ## 7. AI Shop Builder
 
 ### Get shop
-**`GET /user/shop`** 🔒
+**`GET /api/user/shop`** 🔒
 
 ```json
 {
@@ -422,7 +422,7 @@ Returns `result: null` if the user has no shop yet.
 ---
 
 ### Create shop
-**`POST /user/shop`** 🔒
+**`POST /api/user/shop`** 🔒
 
 ```json
 {
@@ -437,7 +437,7 @@ Returns `result: null` if the user has no shop yet.
 ---
 
 ### Update shop
-**`PUT /user/shop`** 🔒
+**`PUT /api/user/shop`** 🔒
 
 ```json
 {
@@ -450,7 +450,7 @@ Fields: `business_name`, `description`, `currency`, `status` (`draft` | `publish
 ---
 
 ### Upload shop logo
-**`POST /user/shop/logo`** 🔒 — `multipart/form-data`
+**`POST /api/user/shop/logo`** 🔒 — `multipart/form-data`
 
 | Field | Constraint |
 |---|---|
@@ -464,7 +464,7 @@ Fields: `business_name`, `description`, `currency`, `status` (`draft` | `publish
 ---
 
 ### Upload shop banner
-**`POST /user/shop/banner`** 🔒 — `multipart/form-data`
+**`POST /api/user/shop/banner`** 🔒 — `multipart/form-data`
 
 | Field | Constraint |
 |---|---|
@@ -478,7 +478,7 @@ Fields: `business_name`, `description`, `currency`, `status` (`draft` | `publish
 ---
 
 ### Chat with AI agent (standard)
-**`POST /user/shop/ai/chat`** 🔒
+**`POST /api/user/shop/ai/chat`** 🔒
 
 Waits for the full AI response before returning. Use this for simple integrations or server-side calls. For animated real-time output use the streaming endpoint below.
 
@@ -500,12 +500,12 @@ Waits for the full AI response before returning. Use this for simple integration
 }
 ```
 
-> If `action` is not null and `action.action === "update_theme"`, the theme has already been applied on the backend. Re-fetch `GET /user/shop` to get the updated `theme_config`.
+> If `action` is not null and `action.action === "update_theme"`, the theme has already been applied on the backend. Re-fetch `GET /api/user/shop` to get the updated `theme_config`.
 
 ---
 
 ### Chat with AI agent (streaming) ⚡
-**`POST /user/shop/ai/chat/stream`** 🔒
+**`POST /api/user/shop/ai/chat/stream`** 🔒
 
 Returns a `text/event-stream` (SSE) response. Tokens are pushed one chunk at a time as the AI generates them — use this for a ChatGPT-style animated chat UI.
 
@@ -526,7 +526,7 @@ Returns a `text/event-stream` (SSE) response. Tokens are pushed one chunk at a t
 **React integration:**
 ```tsx
 const sendMessage = async (userMsg: string, token: string) => {
-  const res = await fetch('/user/shop/ai/chat/stream', {
+  const res = await fetch('/api/user/shop/ai/chat/stream', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -572,7 +572,7 @@ const sendMessage = async (userMsg: string, token: string) => {
 ---
 
 ### Get AI conversation history
-**`GET /user/shop/ai/history`** 🔒
+**`GET /api/user/shop/ai/history`** 🔒
 
 Returns the current message buffer plus the compressed memory tiers.
 
@@ -600,7 +600,7 @@ Returns the current message buffer plus the compressed memory tiers.
 ---
 
 ### Reset AI memory
-**`DELETE /user/shop/ai/memory`** 🔒
+**`DELETE /api/user/shop/ai/memory`** 🔒
 
 Clears all three memory tiers (buffer, summary, entities). The agent starts completely fresh on the next chat. The shop itself (theme, products) is not affected.
 
@@ -609,7 +609,7 @@ Clears all three memory tiers (buffer, summary, entities). The agent starts comp
 ## 8. Shop Products
 
 ### List products
-**`GET /user/shop/products`** 🔒
+**`GET /api/user/shop/products`** 🔒
 
 Query params: `page`, `limit`, `category`, `active` (`true`/`false`)
 
@@ -636,7 +636,7 @@ Query params: `page`, `limit`, `category`, `active` (`true`/`false`)
 ---
 
 ### Create product
-**`POST /user/shop/products`** 🔒
+**`POST /api/user/shop/products`** 🔒
 
 ```json
 {
@@ -653,21 +653,21 @@ Query params: `page`, `limit`, `category`, `active` (`true`/`false`)
 ---
 
 ### Update product
-**`PUT /user/shop/products/:productId`** 🔒
+**`PUT /api/user/shop/products/:productId`** 🔒
 
 Same fields as create, all optional.
 
 ---
 
 ### Delete product (soft)
-**`DELETE /user/shop/products/:productId`** 🔒
+**`DELETE /api/user/shop/products/:productId`** 🔒
 
 Sets `is_active = false`. Product stays in DB.
 
 ---
 
 ### Upload product images
-**`POST /user/shop/products/:productId/images`** 🔒 — `multipart/form-data`
+**`POST /api/user/shop/products/:productId/images`** 🔒 — `multipart/form-data`
 
 | Field | Constraint |
 |---|---|
@@ -680,7 +680,7 @@ Sets `is_active = false`. Product stays in DB.
 ---
 
 ### Delete a product image
-**`DELETE /user/shop/products/:productId/images/:publicId`** 🔒
+**`DELETE /api/user/shop/products/:productId/images/:publicId`** 🔒
 
 `:publicId` must be URL-encoded.
 
@@ -940,7 +940,7 @@ await api.post('/user/account-info/profile-image', form, {
 ```js
 const form = new FormData()
 files.forEach((f) => form.append('images', f))
-await api.post(`/user/shop/products/${productId}/images`, form, {
+await api.post(`/api/user/shop/products/${productId}/images`, form, {
   headers: { 'Content-Type': 'multipart/form-data' },
 })
 ```

@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Fiber Payment Received</title>
+		<link
+			rel="stylesheet"
+			href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+		/>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap"
+			rel="stylesheet"
+		/>
+		<style>
+			:root {
+				--font-family: "Inter", Arial, sans-serif;
+				--background-color: #f4f4f4;
+				--container-bg-color: #f7f6fe;
+				--container-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+				--text-color: #333;
+				--secondary-text-color: #666;
+				--success-color: #22c55e;
+				--success-bg: #f0fdf4;
+				--fiber-color: #6366f1;
+				--fiber-bg: #eef2ff;
+				--footer-text-color: #999;
+				--border-color: #e0e0e0;
+			}
+			body {
+				font-family: var(--font-family);
+				background-color: var(--background-color);
+				margin: 0;
+				padding: 20px;
+			}
+			.container {
+				max-width: 600px;
+				margin: 0 auto;
+				padding: 2rem;
+				background: var(--container-bg-color);
+				border-radius: 5px;
+				box-shadow: var(--container-shadow);
+			}
+			.logo {
+				display: block;
+				width: 150px;
+				margin-bottom: 2rem;
+			}
+			.fiber-badge {
+				background-color: var(--fiber-bg);
+				border: 2px solid var(--fiber-color);
+				border-radius: 50px;
+				width: 60px;
+				height: 60px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				margin: 0 auto 1.5rem;
+				font-size: 28px;
+			}
+			.fiber-badge i {
+				color: var(--fiber-color);
+			}
+			h1 {
+				color: var(--text-color);
+				font-size: 28px;
+				margin-bottom: 1rem;
+				text-align: center;
+			}
+			.subtitle {
+				color: var(--fiber-color);
+				font-size: 0.9rem;
+				text-align: center;
+				margin-bottom: 1.5rem;
+				font-weight: 600;
+				text-transform: uppercase;
+				letter-spacing: 0.5px;
+			}
+			p {
+				color: var(--secondary-text-color);
+				font-size: 1rem;
+				line-height: 1.6;
+				margin-bottom: 1rem;
+			}
+			.payment-details {
+				background-color: #fff;
+				border: 1px solid var(--border-color);
+				border-radius: 5px;
+				padding: 1.5rem;
+				margin: 2rem 0;
+			}
+			.detail-row {
+				display: flex;
+				justify-content: space-between;
+				padding: 0.75rem 0;
+				border-bottom: 1px solid var(--border-color);
+			}
+			.detail-row:last-child {
+				border-bottom: none;
+			}
+			.detail-label {
+				color: var(--secondary-text-color);
+				font-weight: 600;
+				font-size: 0.95rem;
+			}
+			.detail-value {
+				color: var(--text-color);
+				font-weight: 700;
+				text-align: right;
+				word-break: break-word;
+			}
+			.amount-section {
+				display: flex;
+				gap: 1rem;
+				margin: 2rem 0;
+			}
+			.amount-box {
+				flex: 1;
+				background-color: #fff;
+				border: 1px solid var(--border-color);
+				border-radius: 5px;
+				padding: 1rem;
+				text-align: center;
+			}
+			.amount-box .label {
+				color: var(--secondary-text-color);
+				font-size: 0.9rem;
+				margin-bottom: 0.5rem;
+			}
+			.amount-box .value {
+				color: var(--text-color);
+				font-size: 1.5rem;
+				font-weight: 700;
+			}
+			.amount-box.crypto {
+				background-color: var(--fiber-bg);
+				border-color: var(--fiber-color);
+			}
+			.amount-box.crypto .value {
+				color: var(--fiber-color);
+			}
+			.fee-section {
+				background-color: #fff3cd;
+				border: 1px solid #ffc107;
+				border-radius: 5px;
+				padding: 1rem;
+				margin: 1.5rem 0;
+			}
+			.fee-section .label {
+				color: #856404;
+				font-size: 0.9rem;
+				font-weight: 600;
+				margin-bottom: 0.5rem;
+			}
+			.fee-detail {
+				display: flex;
+				justify-content: space-between;
+				color: #856404;
+				margin: 0.5rem 0;
+				font-size: 0.95rem;
+			}
+			.settlement-info {
+				background-color: var(--fiber-bg);
+				border: 1px solid var(--fiber-color);
+				border-radius: 5px;
+				padding: 1rem;
+				margin: 1.5rem 0;
+			}
+			.settlement-info .title {
+				color: var(--fiber-color);
+				font-weight: 600;
+				margin-bottom: 0.5rem;
+				font-size: 0.95rem;
+			}
+			.settlement-info .text {
+				color: var(--secondary-text-color);
+				font-size: 0.9rem;
+				line-height: 1.5;
+			}
+			.payment-hash {
+				background-color: #f0f0f0;
+				padding: 1rem;
+				border-radius: 5px;
+				word-break: break-all;
+				font-family: monospace;
+				font-size: 0.75rem;
+				margin: 1rem 0;
+				color: var(--text-color);
+				line-height: 1.5;
+			}
+			.action-button {
+				background-color: var(--fiber-color);
+				color: white;
+				padding: 0.75rem 1.5rem;
+				border: none;
+				border-radius: 5px;
+				text-decoration: none;
+				display: inline-block;
+				margin: 1rem 0;
+				font-weight: 600;
+				cursor: pointer;
+				width: 100%;
+				text-align: center;
+			}
+			.action-button:hover {
+				background-color: #4f46e5;
+			}
+			.footer-text {
+				color: var(--footer-text-color);
+				font-size: 0.85rem;
+				text-align: center;
+				margin-top: 2rem;
+				padding-top: 1rem;
+				border-top: 1px solid var(--border-color);
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<!-- Logo -->
+			<img src="cid:logo" alt="Logo" class="logo" />
+
+			<!-- Fiber Badge -->
+			<div class="fiber-badge">
+				<i class="fas fa-bolt"></i>
+			</div>
+
+			<!-- Main Content -->
+			<h1>Instant Payment Received!</h1>
+			<div class="subtitle">Via Fiber Protocol</div>
+			<p>Hi {{businessName}},</p>
+			<p>
+				Excellent news! We've received your instant Fiber payment. Your transaction
+				has been processed and settled instantly without waiting for blockchain confirmation.
+			</p>
+
+			<!-- Payment Details -->
+			<div class="payment-details">
+				<div class="detail-row">
+					<span class="detail-label">Payment ID:</span>
+					<span class="detail-value">{{paymentId}}</span>
+				</div>
+				<div class="detail-row">
+					<span class="detail-label">Payment Hash:</span>
+					<span class="detail-value" style="font-size: 0.8rem">{{paymentHash}}</span>
+				</div>
+				<div class="detail-row">
+					<span class="detail-label">Your Reference:</span>
+					<span class="detail-value">{{description}}</span>
+				</div>
+				<div class="detail-row">
+					<span class="detail-label">Received At:</span>
+					<span class="detail-value">{{receivedAt}}</span>
+				</div>
+			</div>
+
+			<!-- Amount Boxes -->
+			<div class="amount-section">
+				<div class="amount-box crypto">
+					<div class="label">Received in Crypto</div>
+					<div class="value">{{amountCrypto}} {{currency}}</div>
+				</div>
+				<div class="amount-box">
+					<div class="label">Equivalent USD</div>
+					<div class="value">${{amountUsd}}</div>
+				</div>
+			</div>
+
+			<!-- Fee Section -->
+			<div class="fee-section">
+				<div class="label"><i class="fas fa-info-circle"></i> Settlement Details</div>
+				<div class="fee-detail">
+					<span>Gross Amount Received:</span>
+					<span>${{amountUsd}}</span>
+				</div>
+				<div class="fee-detail">
+					<span>Platform Fee (5%):</span>
+					<span>-${{platformFee}}</span>
+				</div>
+				<div class="fee-detail" style="border-top: 1px solid #ffc107; padding-top: 0.5rem; margin-top: 0.5rem; font-weight: 600;">
+					<span>Net Amount to Wallet:</span>
+					<span>${{netAmount}}</span>
+				</div>
+			</div>
+
+			<!-- Settlement Info -->
+			<div class="settlement-info">
+				<div class="title"><i class="fas fa-check-circle"></i> Settlement Complete</div>
+				<div class="text">
+					Your payment has been settled instantly using the Fiber protocol. The net amount
+					(after 5% platform fee) of <strong>${{netAmount}}</strong> has been added to your wallet balance.
+					Settlement was completed at {{settlementTime}}.
+				</div>
+			</div>
+
+			<!-- CTA Button -->
+			<a href="{{dashboardUrl}}" class="action-button">
+				<i class="fas fa-chart-line"></i> View in Dashboard
+			</a>
+
+			<!-- Footer -->
+			<div class="footer-text">
+				<p>
+					This is an automated notification from our payment system. Fiber payments settle instantly
+					without requiring blockchain confirmation. For questions, visit our support center.
+				</p>
+				<p>&copy; {{currentYear}} Payment Platform. All rights reserved.</p>
+			</div>
+		</div>
+	</body>
+</html>

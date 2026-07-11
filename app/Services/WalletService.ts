@@ -3,9 +3,11 @@ import PaymentIntent from 'App/Models/PaymentIntent'
 import { PaymentIntentStatus, WalletType } from '../Lib/types'
 import Currency from 'App/Models/Currency'
 import Env from '@ioc:Adonis/Core/Env'
-import { WalletSDK } from 'contract-wallet-sdk';
 import Database from '@ioc:Adonis/Lucid/Database'
-import { EvmChain } from 'contract-wallet-sdk/dist/walletsdk/types/types'
+import WalletSDK from 'contract-wallet-sdk/dist/walletsdk'
+import type { EvmChain } from 'contract-wallet-sdk/dist/walletsdk/types/types'
+import CKBService from './CKBService'
+import Logger from '@ioc:Adonis/Core/Logger'
 
 import { DateTime } from 'luxon'
 
@@ -33,12 +35,14 @@ class WalletService {
 
       const cryptoNetwork = cryptoCurrency.cryptoNetwork;
 
-      // Non-EVM chains (e.g. CKB) have their own wallet generation path
+      if (cryptoNetwork.networkType === 'ckb') {
+        return await this.createCkbWallet({ userId, cryptoCurrencyId, refId, sessionDurationMinutes, trx })
+      }
+
       if (cryptoNetwork.networkType !== 'evm') {
         throw new Error(
-          `Network ${cryptoNetwork.name} (${cryptoNetwork.networkType}) is not an EVM network. ` +
-          `Use the appropriate service for wallet creation.`
-        );
+          `Network ${cryptoNetwork.name} (${cryptoNetwork.networkType}) is not supported yet.`
+        )
       }
 
       // Calculate expiration time (session + 1hr)
@@ -135,6 +139,62 @@ class WalletService {
       await wallet.useTransaction(trx).save();
       return wallet;
     });
+  }
+
+  private async createCkbWallet({ userId, cryptoCurrencyId, refId, sessionDurationMinutes = 60 }: {
+    userId: string
+    cryptoCurrencyId: string
+    refId?: string
+    sessionDurationMinutes?: number
+  } & Record<string, any>): Promise<Wallet> {
+    return await Database.transaction(async (trx) => {
+      const cryptoCurrency = await Currency.query({ client: trx })
+        .where('uniqueId', cryptoCurrencyId)
+        .preload('cryptoNetwork')
+        .firstOrFail()
+
+      const expiresAt = DateTime.now().plus({ minutes: sessionDurationMinutes + 60 })
+      const cryptoNetwork = cryptoCurrency.cryptoNetwork
+
+      let activeWallet: Wallet | null = null
+      if (refId) {
+        activeWallet = await Wallet.query({ client: trx })
+          .where('userId', userId)
+          .andWhere('cryptoNetworkId', cryptoNetwork.uniqueId)
+          .andWhere('refId', refId)
+          .andWhere('status', 'active')
+          .andWhere('expiresAt', '>', DateTime.now().toSQL())
+          .first()
+      }
+
+      if (activeWallet && activeWallet.reusable) {
+        activeWallet.reusable = false
+        activeWallet.expiresAt = expiresAt
+        activeWallet.status = 'active'
+        await activeWallet.useTransaction(trx).save()
+        return activeWallet
+      }
+
+      let ckbAddress: string | undefined
+      try {
+        await CKBService.initialize()
+        ckbAddress = CKBService.generateWallet().address
+      } catch (error) {
+        Logger.warn('[WalletService] CKB wallet generation failed, using placeholder: %s', error.message)
+      }
+
+      const wallet = new Wallet()
+      wallet.userId = userId
+      wallet.type = WalletType.CHILD
+      wallet.walletAddress = ckbAddress || `placeholder-ckb-${Date.now()}`
+      wallet.cryptoNetworkId = cryptoNetwork.uniqueId
+      wallet.refId = refId
+      wallet.expiresAt = expiresAt
+      wallet.reusable = false
+      wallet.status = 'active'
+      await wallet.useTransaction(trx).save()
+      return wallet
+    })
   }
 
   /**

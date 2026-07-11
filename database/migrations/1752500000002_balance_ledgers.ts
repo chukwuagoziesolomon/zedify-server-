@@ -4,6 +4,10 @@ export default class BalanceLedgers extends BaseSchema {
   protected tableName = 'balance_ledgers'
 
   async up() {
+    // Drop enums if they exist from previous runs
+    await this.schema.raw('DROP TYPE IF EXISTS ledger_transaction_type CASCADE')
+    await this.schema.raw('DROP TYPE IF EXISTS ledger_status CASCADE')
+    
     this.schema.createTable(this.tableName, (table) => {
       table.increments('id')
       table

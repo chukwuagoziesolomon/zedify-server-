@@ -49,6 +49,21 @@ export default class Shop extends BaseModel {
   @column()
   public currency: string = 'NGN'
 
+  @column()
+  public shopType: 'default' | 'ai_custom' = 'default'
+
+  @column()
+  public template: string | null = null
+
+  @column()
+  public customizationAccessPaid: boolean = false
+
+  @column.dateTime()
+  public customizationAccessPaidAt: DateTime | null
+
+  @column()
+  public customizationPaymentReferenceId: string | null
+
   @hasMany(() => ShopProduct, { foreignKey: 'shopId', localKey: 'uniqueId' })
   public products: HasMany<typeof ShopProduct>
 

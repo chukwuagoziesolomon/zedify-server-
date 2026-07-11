@@ -1,5 +1,7 @@
 import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
 import { DateTime } from 'luxon'
+import { resolvePreferredCryptoCurrency } from 'App/helpers/cryptoCurrencySelection'
+import PaymentSetupService from 'App/Services/PaymentSetupService'
 import PaymentLink from 'App/Models/PaymentLink'
 import PaymentIntent from 'App/Models/PaymentIntent'
 import Currency from 'App/Models/Currency'
@@ -10,6 +12,7 @@ import RolesController from './RolesController'
 import BusinessCurrencyController from './BusinessCurrencyController'
 import CurrencyController from './CurrencyController'
 import WalletService from 'App/Services/WalletService'
+import FiberInvoiceService from 'App/Services/FiberInvoiceService'
 
 export default class PaymentLinkController extends RolesController {
   // ─── Merchant endpoints (auth required) ───────────────────────────────────
@@ -265,6 +268,7 @@ export default class PaymentLinkController extends RolesController {
       // Resolve amount
       let fiatAmount: number
       let fiatCurrencyId: string
+      const requestedReferenceId = request.input('reference_id') || request.input('referenceId')
 
       if (link.fiatAmount != null && link.fiatCurrencyId) {
         fiatAmount = link.fiatAmount
@@ -280,8 +284,10 @@ export default class PaymentLinkController extends RolesController {
         fiatCurrencyId = fc.uniqueId
       }
 
-      // Auto-generate a unique reference_id for this checkout session
-      const referenceId = `${link.slug}_${Date.now()}`
+      // Use a caller-supplied reference id when provided, otherwise generate one.
+      const referenceId = requestedReferenceId
+        ? String(requestedReferenceId)
+        : `${link.slug}_${Date.now()}`
 
       // Create the PaymentIntent on behalf of the merchant
       const intent = await PaymentIntent.create({
@@ -355,6 +361,12 @@ export default class PaymentLinkController extends RolesController {
       if (!reference_id) throw new Error('reference_id is required')
       if (!crypto_currency_id) throw new Error('crypto_currency_id is required')
 
+      const activeCurrencies = await BusinessCurrencyController.getActiveCurrenciesForBusiness(link.businessId)
+      const resolvedCurrencies = (await Promise.all(
+        activeCurrencies.map(async (bc) => Currency.query().where('uniqueId', bc.uniqueId).first())
+      )).filter((currency): currency is Currency => Boolean(currency))
+      const preferredCurrency = resolvePreferredCryptoCurrency(resolvedCurrencies, crypto_currency_id)
+
       // Find the payment intent
       const intent = await PaymentIntent.query()
         .where('businessReferenceId', reference_id)
@@ -363,7 +375,7 @@ export default class PaymentLinkController extends RolesController {
       if (!intent) throw new Error('Payment session not found')
 
       // Validate crypto currency
-      const cryptoCurrency = await Currency.query().where('uniqueId', crypto_currency_id).first()
+      const cryptoCurrency = preferredCurrency ?? await Currency.query().where('uniqueId', crypto_currency_id).first()
       if (!cryptoCurrency || cryptoCurrency.type !== CurrencyType.CRYPTO) {
         throw new Error('Invalid crypto currency')
       }
@@ -373,18 +385,13 @@ export default class PaymentLinkController extends RolesController {
         .first()
       if (!cryptoNetwork) throw new Error('Crypto network not found')
 
-      // Create or reuse a child wallet
-      const wallet = await WalletService.createChildWallet({
-        userId: link.businessId,
-        cryptoCurrencyId: cryptoCurrency.uniqueId,
+      const setup = await PaymentSetupService.createPaymentSetup({
+        paymentIntent: intent,
+        userUniqueId: link.businessId,
+        userIntId: link.businessId as unknown as number,
+        cryptoCurrency,
+        referenceId,
       })
-
-      // Update the intent
-      intent.cryptoCurrencyId = cryptoCurrency.uniqueId
-      intent.walletId = wallet.uniqueId
-      await intent.save()
-
-      const fiatCurrency = await Currency.query().where('uniqueId', intent.fiatCurrencyId).first()
 
       return response.ok({
         error: false,
@@ -393,25 +400,9 @@ export default class PaymentLinkController extends RolesController {
           payment_intent_id: intent.uniqueId,
           expiration_time: '1800',
           fee_in_crypto: 0,
-          wallet: {
-            address: wallet.walletAddress,
-            qr_code: wallet.qrCodeUrl,
-          },
-          fiat: {
-            name: fiatCurrency?.name || '',
-            symbol: fiatCurrency?.symbol || '',
-            logo: fiatCurrency?.logo || '',
-            amount: intent.fiatAmount,
-          },
-          crypto: {
-            name: cryptoCurrency.name,
-            symbol: cryptoCurrency.symbol,
-            logo: cryptoCurrency.logo,
-            network: {
-              name: cryptoNetwork.name,
-              logo: cryptoNetwork.logo,
-            },
-          },
+          wallet: setup.wallet,
+          fiat: setup.fiat,
+          crypto: setup.crypto,
         },
       })
     } catch (error) {

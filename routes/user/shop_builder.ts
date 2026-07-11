@@ -4,36 +4,37 @@ import Route from '@ioc:Adonis/Core/Route'
  * Shop Builder Routes
  * All routes require authentication via auth:user middleware.
  */
+Route.group(() => {
+  // ─── Shop CRUD ───────────────────────────────────────────────────────────────
 
-// ─── Shop CRUD ───────────────────────────────────────────────────────────────
+  /** GET /api/user/shop — Get the authenticated user's shop */
+  Route.get('/', 'ShopBuilderController.show')
 
-/** GET /user/shop — Get the authenticated user's shop */
-Route.get('/user/shop', 'ShopBuilderController.show').middleware('auth:user')
+  /** POST /api/user/shop — Create a new shop */
+  Route.post('/', 'ShopBuilderController.create')
 
-/** POST /user/shop — Create a new shop */
-Route.post('/user/shop', 'ShopBuilderController.create').middleware('auth:user')
+  /** PUT /api/user/shop — Update shop details */
+  Route.put('/', 'ShopBuilderController.update')
 
-/** PUT /user/shop — Update shop details */
-Route.put('/user/shop', 'ShopBuilderController.update').middleware('auth:user')
+  // ─── Shop Media ───────────────────────────────────────────────────────────────
 
-// ─── Shop Media ───────────────────────────────────────────────────────────────
+  /** POST /api/user/shop/logo — Upload shop logo (multipart: logo) */
+  Route.post('/logo', 'ShopBuilderController.uploadLogo')
 
-/** POST /user/shop/logo — Upload shop logo (multipart: logo) */
-Route.post('/user/shop/logo', 'ShopBuilderController.uploadLogo').middleware('auth:user')
+  /** POST /api/user/shop/banner — Upload shop banner (multipart: banner) */
+  Route.post('/banner', 'ShopBuilderController.uploadBanner')
 
-/** POST /user/shop/banner — Upload shop banner (multipart: banner) */
-Route.post('/user/shop/banner', 'ShopBuilderController.uploadBanner').middleware('auth:user')
+  // ─── AI Agent ─────────────────────────────────────────────────────────────────
 
-// ─── AI Agent ─────────────────────────────────────────────────────────────────
+  /** POST /api/user/shop/ai/chat — Chat with the AI shop builder agent */
+  Route.post('/ai/chat', 'ShopBuilderController.aiChat')
 
-/** POST /user/shop/ai/chat — Chat with the AI shop builder agent */
-Route.post('/user/shop/ai/chat', 'ShopBuilderController.aiChat').middleware('auth:user')
+  /** POST /api/user/shop/ai/chat/stream — SSE streaming chat (text/event-stream) */
+  Route.post('/ai/chat/stream', 'ShopBuilderController.aiChatStream')
 
-/** POST /user/shop/ai/chat/stream — SSE streaming chat (text/event-stream) */
-Route.post('/user/shop/ai/chat/stream', 'ShopBuilderController.aiChatStream').middleware('auth:user')
+  /** GET /api/user/shop/ai/history — Get AI conversation history */
+  Route.get('/ai/history', 'ShopBuilderController.aiHistory')
 
-/** GET /user/shop/ai/history — Get AI conversation history (buffer + summary + entity memory) */
-Route.get('/user/shop/ai/history', 'ShopBuilderController.aiHistory').middleware('auth:user')
-
-/** DELETE /user/shop/ai/memory — Reset all AI memory tiers (start fresh) */
-Route.delete('/user/shop/ai/memory', 'ShopBuilderController.aiResetMemory').middleware('auth:user')
+  /** DELETE /api/user/shop/ai/memory — Reset all AI memory tiers */
+  Route.delete('/ai/memory', 'ShopBuilderController.aiResetMemory')
+}).prefix('/api/user/shop').middleware('auth:user')

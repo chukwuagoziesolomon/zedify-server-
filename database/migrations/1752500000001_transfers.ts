@@ -4,6 +4,10 @@ export default class Transfers extends BaseSchema {
   protected tableName = 'transfers'
 
   async up() {
+    // Drop enums if they exist from previous runs
+    await this.schema.raw('DROP TYPE IF EXISTS transfer_recipient_type CASCADE')
+    await this.schema.raw('DROP TYPE IF EXISTS transfer_status CASCADE')
+    
     this.schema.createTable(this.tableName, (table) => {
       table.increments('id')
       table

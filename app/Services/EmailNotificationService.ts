@@ -25,8 +25,8 @@ export class EmailNotificationService {
     data: PaymentConfirmationData
   ): Promise<void> {
     try {
-      // businessId is the userId
-      const user = await User.findOrFail(paymentIntent.businessId)
+      // businessId is the userId (uniqueId string)
+      const user = await User.query().where('uniqueId', paymentIntent.businessId).firstOrFail()
 
       const emailData = {
         businessName: user.businessName,
@@ -112,8 +112,8 @@ export class EmailNotificationService {
    */
   async sendPaymentExpiredEmail(paymentIntent: PaymentIntent): Promise<void> {
     try {
-      // businessId is the userId
-      const user = await User.findOrFail(paymentIntent.businessId)
+      // businessId is the userId (uniqueId string)
+      const user = await User.query().where('uniqueId', paymentIntent.businessId).firstOrFail()
 
       const emailData = {
         businessName: user.businessName,
@@ -261,6 +261,100 @@ export class EmailNotificationService {
         return '1-2 minutes'
       default:
         return 'Unknown'
+    }
+  }
+
+  /**
+   * Send Fiber payment received notification
+   * Called after instant settlement via Fiber protocol
+   */
+  async sendFiberPaymentReceivedEmail(
+    businessId: string,
+    paymentId: string,
+    paymentHash: string,
+    amountCrypto: number,
+    currency: string,
+    amountUsd: number,
+    platformFee: number,
+    netAmount: number,
+    description?: string,
+    dashboardUrl?: string
+  ): Promise<void> {
+    try {
+      const user = await User.query().where('uniqueId', businessId).firstOrFail()
+
+      const emailData = {
+        businessName: user.businessName,
+        userEmail: user.email,
+        paymentId: paymentId,
+        paymentHash: paymentHash,
+        amountCrypto: amountCrypto.toFixed(8),
+        currency: currency,
+        amountUsd: amountUsd.toFixed(2),
+        platformFee: platformFee.toFixed(2),
+        netAmount: netAmount.toFixed(2),
+        description: description || 'Fiber Payment',
+        receivedAt: new Date().toLocaleString(),
+        settlementTime: new Date().toLocaleString(),
+        dashboardUrl: dashboardUrl || 'https://dashboard.paymentsystem.com/payments',
+        currentYear: new Date().getFullYear(),
+      }
+
+      await this.notificationService.sendEmail({
+        to: user.email,
+        subject: `Instant Payment Received: ${amountUsd.toFixed(2)} USD`,
+        template: 'fiber_payment_received',
+        replacements: emailData,
+      })
+
+      Logger.info(
+        `[EmailNotification] Fiber payment email sent to ${user.email}`
+      )
+    } catch (error) {
+      Logger.warn(
+        `[EmailNotification] Failed to send Fiber payment email: ${error}`
+      )
+      // Don't throw - notifications are non-blocking
+    }
+  }
+
+  /**
+   * Send deposit credited email to the user.
+   * Called by StablecoinConversionService once funds land in the wallet.
+   */
+  async sendDepositCreditedEmail(
+    user: any,
+    data: {
+      currencySymbol: string
+      nairaAmount: number
+      creditedAmount: number
+      newBalance: number
+      creditedAt: Date
+    }
+  ): Promise<void> {
+    try {
+      const creditedAtStr = data.creditedAt.toLocaleString('en-NG', {
+        timeZone: 'Africa/Lagos',
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      })
+
+      await this.notificationService.sendEmail({
+        to: user.email,
+        subject: `₦${data.nairaAmount.toLocaleString()} converted to ${data.creditedAmount} ${data.currencySymbol}`,
+        template: 'payment_received',
+        replacements: {
+          name: user.firstName || user.businessName || 'User',
+          amount: `${data.creditedAmount} ${data.currencySymbol}`,
+          naira_amount: `₦${data.nairaAmount.toLocaleString()}`,
+          currency: data.currencySymbol,
+          new_balance: `${data.newBalance} ${data.currencySymbol}`,
+          credited_at: creditedAtStr,
+          message: `Your naira deposit has been converted and credited to your ${data.currencySymbol} wallet.`,
+        },
+      })
+    } catch (err) {
+      Logger.warn(`[EmailNotification] Failed to send deposit credited email: ${err}`)
     }
   }
 

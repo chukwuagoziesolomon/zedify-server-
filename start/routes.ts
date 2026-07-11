@@ -28,6 +28,7 @@ import '../routes/user/withdrawal'
 import '../routes/user/wallet'
 import '../routes/user/shop_builder'
 import '../routes/user/shop_products'
+import '../routes/user/shop_customization'
 
 // Webhook routes for payment confirmations
 import '../routes/webhooks'
@@ -41,3 +42,9 @@ import '../routes/public'
 
 // CKB test routes (temporary)
 import '../routes/test/ckb'
+
+// Fiber Network routes
+import '../routes/user/fiber'
+
+// Business Fiber Settings routes
+import '../routes/business/fiber'

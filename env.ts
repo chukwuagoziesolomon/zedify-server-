@@ -71,6 +71,13 @@ export default Env.rules({
 	ASSETCHAIN_TESTNET_RPC: Env.schema.string.optional(),
 	CKB_TESTNET_RPC: Env.schema.string.optional(),
 
+	// -------------------------------------------------------------------------
+	// Fiber Network (CKB payment channels)
+	// -------------------------------------------------------------------------
+	FIBER_NODE_URL: Env.schema.string.optional(),
+	FIBER_BISCUIT_TOKEN: Env.schema.string.optional(),
+	FIBER_NETWORK: Env.schema.string.optional(),
+
 	CLIENT_URL: Env.schema.string.optional(),
 
 	// -------------------------------------------------------------------------
@@ -78,5 +85,6 @@ export default Env.rules({
 	// -------------------------------------------------------------------------
 	ANTHROPIC_API_KEY: Env.schema.string(),
 	ANTHROPIC_MODEL: Env.schema.string(),
-	SHOP_BASE_DOMAIN: Env.schema.string(),
+	// Optional — when not set the API host itself is used as the shop base domain
+	SHOP_BASE_DOMAIN: Env.schema.string.optional(),
 })

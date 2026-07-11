@@ -3,6 +3,7 @@ import Logger from '@ioc:Adonis/Core/Logger'
 import PaymentIntent from 'App/Models/PaymentIntent'
 import Wallet from 'App/Models/Wallet'
 import Currency from 'App/Models/Currency'
+import FiberInvoice from 'App/Models/FiberInvoice'
 import { PaymentIntentStatus } from 'App/Lib/types'
 import CurrencyController from './CurrencyController'
 
@@ -230,10 +231,33 @@ export default class PaymentStatusController {
       fiat_amount: intent.fiatAmount,
       fiat_currency_id: intent.fiatCurrencyId,
       created_at: intent.createdAt,
+      expires_at: await this.resolveExpiresAt(intent.uniqueId, intent.createdAt?.toISO()),
       received_payment_at: intent.receivedPaymentAt ?? null,
       completed_at: intent.completedAt ?? null,
       wallet: walletInfo,
       crypto: cryptoInfo,
     }
+  }
+
+  /**
+   * Resolve expires_at for a payment intent.
+   * Prefers FiberInvoice.expiresAt, falls back to createdAt + 1 hour.
+   */
+  private async resolveExpiresAt(paymentIntentId: string, createdAtIso?: string): Promise<string | null> {
+    try {
+      const invoice = await FiberInvoice.query()
+        .where('paymentIntentId', paymentIntentId)
+        .orderBy('createdAt', 'desc')
+        .first()
+      if (invoice?.expiresAt) {
+        return invoice.expiresAt.toISO()
+      }
+    } catch { /* fall through */ }
+    // Fallback: 1 hour from creation
+    if (createdAtIso) {
+      const { DateTime } = require('luxon')
+      return DateTime.fromISO(createdAtIso).plus({ hours: 1 }).toISO()
+    }
+    return null
   }
 }

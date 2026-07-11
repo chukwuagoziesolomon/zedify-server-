@@ -1,15 +1,44 @@
 import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
-import { formatErrorMessage, formatSuccessMessage } from 'App/helpers/utils'
+import { formatErrorMessage, formatSuccessMessage, genRandomUuid, genPaymentLinkSlug } from 'App/helpers/utils'
 import RolesController from './RolesController'
 import Shop from 'App/Models/Shop'
+import ShopProduct from 'App/Models/ShopProduct'
 import AiShopBuilderService from 'App/Services/AiShopBuilderService'
 import { FileUploadService } from 'App/Services/FileUploadService'
-import { genRandomUuid } from 'App/helpers/utils'
 import Env from '@ioc:Adonis/Core/Env'
+import PaymentLink from 'App/Models/PaymentLink'
+import { PaymentLinkStatus } from 'App/Lib/types'
 
 export default class ShopBuilderController extends RolesController {
   private get baseDomain(): string {
-    return Env.get('SHOP_BASE_DOMAIN', 'yourdomain.com')
+    const configured = Env.get('SHOP_BASE_DOMAIN', '')
+    if (configured) return configured
+    const host = Env.get('HOST', 'localhost')
+    const port = Env.get('PORT', '3333')
+    return `${host}:${port}`
+  }
+
+  /**
+   * Build the shop URL. In production this is a subdomain:
+   *   https://mystore.yourdomain.com
+   * In development (when baseDomain contains localhost or a port), it falls
+   * back to a path-based URL the frontend can navigate to:
+   *   http://localhost:3000/shop/mystore
+   */
+  private buildShopUrl(subdomain: string): string {
+    const base = this.baseDomain.replace(/\/+$/, '') // strip trailing slash
+    const isLocal =
+      base.includes('localhost') ||
+      base.includes('127.0.0.1') ||
+      /:\d+/.test(base)
+
+    if (isLocal) {
+      // Path-based: frontend handles /shop/:subdomain routing
+      return `${base}/shop/${subdomain}`
+    }
+    // Subdomain-based for staging/production
+    const cleanBase = base.replace(/^https?:\/\//, '')
+    return `https://${subdomain}.${cleanBase}`
   }
 
   /**
@@ -23,7 +52,8 @@ export default class ShopBuilderController extends RolesController {
       if (!shop) {
         return response.ok(formatSuccessMessage('No shop found', null))
       }
-      return response.ok(formatSuccessMessage('Shop retrieved', this.formatShop(shop)))
+      const paymentGateway = await this.ensureShopPaymentGateway(shop)
+      return response.ok(formatSuccessMessage('Shop retrieved', this.formatShop(shop, paymentGateway)))
     } catch (error) {
       return response.badRequest(await formatErrorMessage(error))
     }
@@ -32,23 +62,21 @@ export default class ShopBuilderController extends RolesController {
   /**
    * POST /user/shop
    * Create a new shop for the authenticated user.
-   * Body: { business_name, subdomain, description?, currency? }
+   * Supports both the newer AI/custom flow and the older template-based flow.
    */
   public async create({ auth, request, response }: HttpContextContract) {
     try {
       const uniqueId = this.allowOnlyLoggedInUsers(auth)
 
       const existing = await Shop.query().where('userId', uniqueId).first()
-      if (existing) throw new Error('You already have a shop. Use PUT /user/shop to update it.')
+      if (existing) throw new Error('You already have a shop. Use PUT /api/user/shop to update it or GET /api/user/shop to view it.')
 
-      const { business_name, subdomain, description, currency } = request.only([
-        'business_name', 'subdomain', 'description', 'currency',
-      ])
+      const payload = this.resolveShopCreationPayload(request.all())
 
-      if (!business_name) throw new Error('business_name is required.')
-      if (!subdomain) throw new Error('subdomain is required.')
+      if (!payload.businessName) throw new Error('business_name is required.')
+      if (!payload.subdomain) throw new Error('subdomain is required.')
 
-      const cleanSubdomain = String(subdomain).toLowerCase().replace(/[^a-z0-9-]/g, '-')
+      const cleanSubdomain = String(payload.subdomain).toLowerCase().replace(/[^a-z0-9-]/g, '-')
 
       const taken = await Shop.query().where('subdomain', cleanSubdomain).first()
       if (taken) throw new Error(`Subdomain "${cleanSubdomain}" is already taken.`)
@@ -56,14 +84,31 @@ export default class ShopBuilderController extends RolesController {
       const shop = await Shop.create({
         uniqueId: genRandomUuid(),
         userId: uniqueId,
-        businessName: String(business_name).trim(),
+        businessName: String(payload.businessName).trim(),
         subdomain: cleanSubdomain,
-        description: description ? String(description).trim() : null,
-        currency: currency || 'NGN',
-        status: 'draft',
+        description: payload.description ? String(payload.description).trim() : null,
+        currency: payload.currency || 'NGN',
+        status: payload.shopType === 'ai_custom' ? 'draft' : 'published',
+        shopType: payload.shopType,
+        template: payload.template,
+        customizationAccessPaid: false,
+        customizationPaymentReferenceId: payload.customizationPaymentReferenceId,
       })
 
-      return response.ok(formatSuccessMessage('Shop created successfully', this.formatShop(shop)))
+      if (payload.themeConfig) {
+        shop.themeConfig = payload.themeConfig
+      }
+      if (payload.pagesConfig) {
+        shop.pagesConfig = payload.pagesConfig
+      }
+      if (payload.template) {
+        shop.themeConfig = { ...(shop.themeConfig || {}), template: payload.template }
+      }
+      await shop.save()
+
+      const paymentGateway = await this.ensureShopPaymentGateway(shop)
+
+      return response.ok(formatSuccessMessage('Shop created successfully', this.formatShop(shop, paymentGateway)))
     } catch (error) {
       return response.badRequest(await formatErrorMessage(error))
     }
@@ -90,7 +135,9 @@ export default class ShopBuilderController extends RolesController {
 
       await shop.save()
 
-      return response.ok(formatSuccessMessage('Shop updated', this.formatShop(shop)))
+      const paymentGateway = await this.ensureShopPaymentGateway(shop)
+
+      return response.ok(formatSuccessMessage('Shop updated', this.formatShop(shop, paymentGateway)))
     } catch (error) {
       return response.badRequest(await formatErrorMessage(error))
     }
@@ -168,6 +215,8 @@ export default class ShopBuilderController extends RolesController {
       const message = request.input('message')
       if (!message || !String(message).trim()) throw new Error('message is required.')
 
+      this.ensureAiCustomizationAccess(shop)
+
       const result = await AiShopBuilderService.chat(shop.uniqueId, String(message).trim())
 
       return response.ok(formatSuccessMessage('AI response', {
@@ -188,6 +237,8 @@ export default class ShopBuilderController extends RolesController {
     try {
       const uniqueId = this.allowOnlyLoggedInUsers(auth)
       const shop = await Shop.query().where('userId', uniqueId).firstOrFail()
+
+      this.ensureAiCustomizationAccess(shop)
 
       const { messages, summaryMemory, entityMemory } = await AiShopBuilderService.getHistory(shop.uniqueId)
       const clean = messages.map(({ role, content }) => ({ role, content }))
@@ -245,6 +296,8 @@ export default class ShopBuilderController extends RolesController {
       return response.notFound({ error: 'Shop not found.' })
     }
 
+    this.ensureAiCustomizationAccess(shop)
+
     // Set SSE headers before writing any body
     const res = response.response
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
@@ -291,6 +344,8 @@ export default class ShopBuilderController extends RolesController {
       const uniqueId = this.allowOnlyLoggedInUsers(auth)
       const shop = await Shop.query().where('userId', uniqueId).firstOrFail()
 
+      this.ensureAiCustomizationAccess(shop)
+
       await AiShopBuilderService.resetMemory(shop.uniqueId)
 
       return response.ok(formatSuccessMessage('AI memory cleared', null))
@@ -299,14 +354,143 @@ export default class ShopBuilderController extends RolesController {
     }
   }
 
+  // ─── Public storefront endpoint (no auth) ──────────────────────────────────
+
+  /**
+   * GET /api/storefront/:subdomain
+   * Public endpoint — returns shop data, products, and checkout URL
+   * for the storefront frontend to render at /shop/:subdomain.
+   */
+  public async storefront({ params, response }: HttpContextContract) {
+    try {
+      const shop = await Shop.query()
+        .where('subdomain', params.subdomain)
+        .first()
+
+      if (!shop) {
+        return response.notFound({ error: true, message: 'Shop not found' })
+      }
+
+      const products = await ShopProduct.query()
+        .where('shopId', shop.uniqueId)
+        .where('isActive', true)
+        .orderBy('createdAt', 'desc')
+
+      const gateway = await this.ensureShopPaymentGateway(shop)
+
+      return response.ok({
+        error: false,
+        data: {
+          id: shop.uniqueId,
+          business_name: shop.businessName,
+          subdomain: shop.subdomain,
+          description: shop.description,
+          logo_url: shop.logoUrl,
+          banner_url: shop.bannerUrl,
+          theme_config: shop.themeConfig,
+          currency: shop.currency,
+          status: shop.status,
+          checkout_url: gateway.checkout_url,
+          payment_link_id: gateway.payment_link_id,
+          products: products.map((p) => ({
+            id: p.uniqueId,
+            name: p.name,
+            price: p.price,
+            currency: p.currency,
+            description: p.description,
+            category: p.category,
+            images: p.images ?? [],
+            stock: p.stock,
+            track_stock: p.trackStock,
+            variants: p.variants,
+          })),
+        },
+      })
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-  private formatShop(shop: Shop) {
+  public resolveShopCreationPayload(input: Record<string, any>) {
+    const businessName = input.business_name ?? input.name ?? input.businessName ?? null
+    const subdomain = input.subdomain ?? input.slug ?? input.domain ?? null
+    const description = input.description ?? input.descriptionText ?? null
+    const currency = input.currency ?? input.default_currency ?? null
+    const shopType = input.shop_type ?? input.shopType ?? (input.template && input.template !== 'yanga-default' ? 'ai_custom' : 'default')
+    const template = input.template ?? (shopType === 'ai_custom' ? 'ai-custom' : 'yanga-default')
+
+    return {
+      businessName,
+      subdomain,
+      description,
+      currency,
+      shopType,
+      template,
+      requiresPayment: shopType === 'ai_custom',
+      customizationPaymentReferenceId: input.customization_payment_reference_id ?? input.customizationPaymentReferenceId ?? (shopType === 'ai_custom' ? `shop-custom-${genRandomUuid()}` : null),
+      themeConfig: input.theme_config ?? input.themeConfig ?? null,
+      pagesConfig: input.pages_config ?? input.pagesConfig ?? null,
+      primaryCategory: input.primaryCategory ?? input.primary_category ?? null,
+      allowPayOnDelivery: input.allowPayOnDelivery ?? input.allow_pay_on_delivery ?? false,
+      acceptedCurrencyIds: input.acceptedCurrencyIds ?? input.accepted_currency_ids ?? null,
+    }
+  }
+
+  public async ensureShopPaymentGateway(shop: Shop) {
+    const existingLink = await PaymentLink.query().where('businessId', shop.userId).first()
+    if (existingLink) {
+      return {
+        enabled: true,
+        payment_link_id: existingLink.uniqueId,
+        checkout_url: `/api/pay/${existingLink.slug}`,
+      }
+    }
+
+    let slug = genPaymentLinkSlug()
+    while (await PaymentLink.query().where('slug', slug).first()) {
+      slug = genPaymentLinkSlug()
+    }
+
+    const paymentLink = await PaymentLink.create({
+      uniqueId: genRandomUuid(),
+      businessId: shop.userId,
+      slug,
+      title: shop.businessName || 'Shop Payments',
+      description: shop.description || 'Crypto payments for this shop',
+      fiatCurrencyId: null,
+      fiatAmount: null,
+      status: PaymentLinkStatus.ACTIVE,
+      isSingleUse: false,
+      usageCount: 0,
+      usageLimit: null,
+      expiresAt: null,
+    })
+
+    return {
+      enabled: true,
+      payment_link_id: paymentLink.uniqueId,
+      checkout_url: `/api/pay/${paymentLink.slug}`,
+    }
+  }
+
+  private ensureAiCustomizationAccess(shop: Shop) {
+    if (shop.shopType === 'ai_custom' && !shop.customizationAccessPaid) {
+      throw new Error('AI customization access requires a completed payment first.')
+    }
+  }
+
+  private formatShop(shop: Shop, paymentGateway?: { enabled: boolean; payment_link_id: string | null; checkout_url: string | null }) {
+    const shopUrl = this.buildShopUrl(shop.subdomain)
+    const checkoutUrl = paymentGateway?.checkout_url ?? null
     return {
       id: shop.uniqueId,
       business_name: shop.businessName,
       subdomain: shop.subdomain,
-      shop_url: `https://${shop.subdomain}.${this.baseDomain}`,
+      shop_url: shopUrl,
+      storefront_url: shopUrl,
+      checkout_url: checkoutUrl,
       description: shop.description,
       logo_url: shop.logoUrl,
       banner_url: shop.bannerUrl,
@@ -314,7 +498,25 @@ export default class ShopBuilderController extends RolesController {
       pages_config: shop.pagesConfig,
       status: shop.status,
       currency: shop.currency,
+      shop_type: shop.shopType,
+      template: shop.template,
+      customization_access: {
+        required: shop.shopType === 'ai_custom',
+        paid: shop.customizationAccessPaid,
+        paid_at: shop.customizationAccessPaidAt?.toISO() ?? null,
+        payment_reference_id: shop.customizationPaymentReferenceId,
+      },
       created_at: shop.createdAt,
+      payment_gateway: paymentGateway || {
+        enabled: false,
+        payment_link_id: null,
+        checkout_url: null,
+      },
+      preview: {
+        url: shopUrl,
+        iframe_src: shopUrl,
+        is_live: shop.status === 'published',
+      },
     }
   }
 }

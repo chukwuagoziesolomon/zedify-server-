@@ -1,0 +1,16 @@
+[Unit]
+Description=WT Payments Server (AdonisJS)
+After=network.target
+
+[Service]
+Type=simple
+User=algo
+WorkingDirectory=/home/algo/wt-payments-server
+ExecStart=/usr/bin/node build/server.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+EnvironmentFile=/home/algo/wt-payments-server/.env
+
+[Install]
+WantedBy=multi-user.target

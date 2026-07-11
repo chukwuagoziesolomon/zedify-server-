@@ -1,0 +1,381 @@
+{
+  "info": {
+    "name": "Fiber Payment API",
+    "description": "Complete API collection for CKB Fiber payments integration",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"business@example.com\",\n  \"password\": \"password\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Fiber Setup",
+      "item": [
+        {
+          "name": "Enable Fiber",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fiberChannelId\": \"ckt1qzda89q270w8pz3ak4m8hzcw7wz6pwc8r5k6jg\",\n  \"fiberPeerId\": \"0x1234567890abcdef\",\n  \"fiberNodeUrl\": \"http://127.0.0.1:8227\",\n  \"acceptCkb\": true,\n  \"acceptSudt\": true,\n  \"autoConvertDaily\": false,\n  \"autoConvertThreshold\": 500,\n  \"settlementSchedule\": \"daily\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/business/fiber/setup",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business", "fiber", "setup"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Fiber Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/business/fiber/setup",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business", "fiber", "setup"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Settlement Preferences",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"autoConvertDaily\": true,\n  \"autoConvertThreshold\": 500,\n  \"settlementSchedule\": \"weekly\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/business/fiber/settlement",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business", "fiber", "settlement"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Disable Fiber",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/business/fiber/disable",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business", "fiber", "disable"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "SUDT Tokens",
+      "item": [
+        {
+          "name": "Get Available SUDT Tokens",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/business/fiber/available-sudt?limit=50&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business", "fiber", "available-sudt"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add SUDT Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sudtTypeScript\": {\n    \"code_hash\": \"0x1142755a044bf2ee358cba9f2da187ce928c91cd4dc8692ded0337efa677d21a\",\n    \"hash_type\": \"type\",\n    \"args\": \"0x878fcc6f1f08d48e87bb1c3b3d5083f23f8a39c5d5c764f253b55b998526439b\"\n  },\n  \"symbol\": \"RUSD\",\n  \"name\": \"Reserve USD\",\n  \"logo\": \"https://example.com/rusd.png\",\n  \"autoConvertEnabled\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/business/fiber/accept-sudt",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business", "fiber", "accept-sudt"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Accepted SUDT Tokens",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/business/fiber/accepted-sudt?limit=50&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business", "fiber", "accepted-sudt"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove SUDT Token",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/business/fiber/accept-sudt/0x1142755a044bf2ee358cba9f2da187ce928c91cd4dc8692ded0337efa677d21a",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business", "fiber", "accept-sudt", "0x1142755a044bf2ee358cba9f2da187ce928c91cd4dc8692ded0337efa677d21a"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Create CKB Payment Intent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessId\": \"bus_123\",\n  \"fiatAmount\": 100.00,\n  \"fiatCurrency\": \"USD\",\n  \"cryptoNetworkId\": \"fiber-testnet\",\n  \"cryptoCurrency\": \"CKB\",\n  \"description\": \"Order #12345\",\n  \"businessReferenceId\": \"order_12345\",\n  \"expiryMinutes\": 30\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payment-intents",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payment-intents"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create SUDT Payment Intent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessId\": \"bus_123\",\n  \"fiatAmount\": 100.00,\n  \"fiatCurrency\": \"USD\",\n  \"cryptoNetworkId\": \"fiber-testnet\",\n  \"cryptoCurrency\": \"SUDT\",\n  \"sudtTypeScript\": {\n    \"code_hash\": \"0x1142755a044bf2ee358cba9f2da187ce928c91cd4dc8692ded0337efa677d21a\",\n    \"hash_type\": \"type\",\n    \"args\": \"0x878fcc6f1f08d48e87bb1c3b3d5083f23f8a39c5d5c764f253b55b998526439b\"\n  },\n  \"sudtSymbol\": \"RUSD\",\n  \"description\": \"Order #12345\",\n  \"expiryMinutes\": 30\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payment-intents",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payment-intents"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payment History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/business/fiber/payments?limit=50&offset=0&status=completed",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business", "fiber", "payments"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "status",
+                  "value": "completed"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Settlement Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/business/fiber/stats?period=30d",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business", "fiber", "stats"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "30d"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Settle Now (Manual)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/business/fiber/settle-now",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business", "fiber", "settle-now"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3333",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "your_bearer_token_here",
+      "type": "string"
+    }
+  ]
+}

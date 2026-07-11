@@ -11,6 +11,11 @@ import CurrencyController from './CurrencyController'
 import WalletService from 'App/Services/WalletService'
 import Wallet from 'App/Models/Wallet'
 import SseService from 'App/Services/SseService'
+import TransactionService from 'App/Services/TransactionService'
+import { DateTime } from 'luxon'
+import QRCode from 'qrcode'
+import { resolvePreferredCryptoCurrency } from 'App/helpers/cryptoCurrencySelection'
+import PaymentSetupService from 'App/Services/PaymentSetupService'
 
 export default class PaymentIntentController extends RolesController {
   private walletService: typeof WalletService = WalletService;
@@ -131,12 +136,10 @@ export default class PaymentIntentController extends RolesController {
       })
 
       const activeCurrencies = await BusinessCurrencyController.getActiveCurrenciesForBusiness(userId)
-      console.log({ activeCurrencies })
 
       const assets = await Promise.all(
         activeCurrencies.map(async (bc) => {
           const bcCurrency = await Currency.query().where('unique_id', bc.uniqueId).first()
-          console.log({ bcCurrency })
           let network: { name: string; logo: string } | null = null
 
           if (bcCurrency && bcCurrency.type === CurrencyType.CRYPTO) {
@@ -195,72 +198,43 @@ export default class PaymentIntentController extends RolesController {
 
   public async createWallet({ request, response, auth }: HttpContextContract) {
     try {
-      const userId = this.allowOnlyLoggedInUsers(auth)
+      const userUniqueId = this.allowOnlyLoggedInUsers(auth)
+      const userIntId = auth.use('user').user?.id as number
       const { crypto_currency_id, reference_id } = request.only(['crypto_currency_id', 'reference_id'])
 
-      // Validate crypto currency
-      const cryptoCurrency = await Currency.query().where('unique_id', crypto_currency_id).first()
+      const activeCurrencies = await BusinessCurrencyController.getActiveCurrenciesForBusiness(userUniqueId)
+      const resolvedCurrencies = (await Promise.all(
+        activeCurrencies.map(async (bc) => Currency.query().where('unique_id', bc.uniqueId).first())
+      )).filter((currency): currency is Currency => Boolean(currency))
+
+      const preferredCurrency = resolvePreferredCryptoCurrency(resolvedCurrencies, crypto_currency_id)
+      const cryptoCurrency = preferredCurrency ?? await Currency.query().where('symbol', crypto_currency_id).first()
       if (!cryptoCurrency) {
         throw new Error('Invalid crypto currency')
       }
       // Find the network for the crypto currency
-      const cryptoNetwork = await CryptoNetwork.query().where('unique_id', cryptoCurrency.cryptoNetworkId).first()
+      const cryptoNetwork = await CryptoNetwork.query().where('uniqueId', cryptoCurrency.cryptoNetworkId).first()
       if (!cryptoNetwork) {
         throw new Error('Crypto network not found')
       }
       // Get the payment intent by reference_id and user
-      const paymentIntent = await PaymentIntent.query().where('businessReferenceId', reference_id).andWhere('businessId', userId).first()
+      const paymentIntent = await PaymentIntent.query().where('businessReferenceId', reference_id).andWhere('businessId', userUniqueId).first()
       if (!paymentIntent) {
         throw new Error('Payment intent not found')
       }
-      // console.log('damn!');return;
 
-      // Use WalletService to create or reuse a wallet
-      const wallet = await this.walletService.createChildWallet({
-        userId,
-        cryptoCurrencyId: cryptoCurrency.uniqueId,
-      });
+      const setup = await PaymentSetupService.createPaymentSetup({
+        paymentIntent,
+        userUniqueId,
+        userIntId,
+        cryptoCurrency,
+        referenceId: reference_id,
+      })
 
-      // Update the payment intent with selected asset, network, and status
-      paymentIntent.cryptoCurrencyId = cryptoCurrency.uniqueId
-      paymentIntent.walletId = wallet.uniqueId
-      // paymentIntent.status = PaymentIntentStatus.PAYMENT_CREATED
-      await paymentIntent.save()
-      // Calculate fee in crypto (mocked as 0.3 for now)
-      const feeInCrypto = 0.3
-      // Build response
-      const fiatCurrency = await Currency.query().where('unique_id', paymentIntent.fiatCurrencyId).first()
-      const fiat = {
-        name: fiatCurrency?.name || '',
-        symbol: fiatCurrency?.symbol || '',
-        logo: fiatCurrency?.logo || '',
-        amount: paymentIntent.fiatAmount,
-      }
-      const crypto = {
-        name: cryptoCurrency.name,
-        symbol: cryptoCurrency.symbol,
-        logo: cryptoCurrency.logo,
-        amount: 0, // You can use your calculateCryptoEquivalent here if needed
-        network: {
-          name: cryptoNetwork.name,
-          logo: cryptoNetwork.logo,
-        },
-      }
       return response.ok({
         error: false,
-        data: {
-          reference_id: paymentIntent.businessReferenceId,
-          expiration_time: '30000', // 30 mins
-          payment_intent_id: paymentIntent.uniqueId,
-          fee_in_crypto: feeInCrypto,
-          wallet: {
-            address: wallet.walletAddress,
-            qr_code: wallet.qrCodeUrl,
-          },
-          fiat,
-          crypto,
-        },
-        message: 'Payment initiated successfully',
+        data: setup,
+        message: setup.wallet.address.includes('fib') ? 'Fiber invoice created successfully' : 'Payment initiated successfully',
       })
     } catch (error) {
       return response.badRequest(await formatErrorMessage(error))

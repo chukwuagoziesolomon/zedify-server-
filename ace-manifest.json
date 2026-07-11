@@ -1,5 +1,41 @@
 {
   "commands": {
+    "poll:payments": {
+      "settings": {
+        "loadApp": true,
+        "stayAlive": false
+      },
+      "commandPath": "./commands/PollPayments",
+      "commandName": "poll:payments",
+      "description": "Poll blockchain for pending crypto payments. Use --watch for continuous polling.",
+      "args": [],
+      "aliases": [],
+      "flags": [
+        {
+          "name": "watch",
+          "propertyName": "watch",
+          "type": "boolean",
+          "alias": "w",
+          "description": "Keep running and poll on a fixed interval"
+        },
+        {
+          "name": "interval",
+          "propertyName": "interval",
+          "type": "number",
+          "alias": "i",
+          "description": "Polling interval in seconds when --watch is set (default: 30)"
+        }
+      ]
+    },
+    "settle:fiber-payments": {
+      "settings": {},
+      "commandPath": "./commands/SettleFiberPayments",
+      "commandName": "settle:fiber-payments",
+      "description": "Process Fiber payment settlements and auto-conversions",
+      "args": [],
+      "aliases": [],
+      "flags": []
+    },
     "dump:rcfile": {
       "settings": {},
       "commandPath": "@adonisjs/core/build/commands/DumpRc",

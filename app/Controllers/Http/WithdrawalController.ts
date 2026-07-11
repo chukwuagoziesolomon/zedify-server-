@@ -45,7 +45,7 @@ export default class WithdrawalController extends RolesController {
    * POST /api/user/withdrawal/initiate
    * Validates the payload, checks balance, sends OTP email.
    *
-   * Body (crypto):
+   * Body (crypto EVM):
    * {
    *   type: 'crypto',
    *   user_wallet_id: string,
@@ -53,6 +53,17 @@ export default class WithdrawalController extends RolesController {
    *   network_id: string,
    *   amount: number,
    *   recipient_address: string
+   * }
+   *
+   * Body (crypto CKB):
+   * {
+   *   type: 'crypto',
+   *   user_wallet_id: string,
+   *   crypto_currency_id: string (CKB or RUSD/FIBB/etc),
+   *   network_id: string (CKB network uniqueId),
+   *   amount: number,
+   *   recipient_address: string (CKB address),
+   *   sudt_type_script: string (REQUIRED for SUDT like RUSD, OPTIONAL for native CKB)
    * }
    *
    * Body (fiat):
@@ -103,6 +114,11 @@ export default class WithdrawalController extends RolesController {
         const currency = await Currency.query().where('uniqueId', body.crypto_currency_id).first()
         if (!currency) throw new Error('Crypto currency not found.')
 
+        // For CKB/Fiber SUDT withdrawals, ensure sudtTypeScript is provided
+        if (network.networkType === 'ckb' && currency.symbol !== 'CKB' && !body.sudt_type_script) {
+          throw new Error(`SUDT withdrawal requires sudt_type_script parameter for ${currency.symbol}.`)
+        }
+
         payload = {
           type: 'crypto',
           userWalletId: body.user_wallet_id,
@@ -110,6 +126,11 @@ export default class WithdrawalController extends RolesController {
           networkId: body.network_id,
           amount,
           recipientAddress: body.recipient_address,
+        }
+
+        // Add SUDT type script if provided (for CKB SUDT withdrawals)
+        if (body.sudt_type_script) {
+          payload.sudtTypeScript = body.sudt_type_script
         }
       } else {
         // Load bank details from saved payout settings — never from request body

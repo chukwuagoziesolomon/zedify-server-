@@ -4,6 +4,9 @@ export default class UserWallets extends BaseSchema {
   protected tableName = 'user_wallets'
 
   async up() {
+    // Drop enum if it exists from previous runs
+    await this.schema.raw('DROP TYPE IF EXISTS user_wallet_status CASCADE')
+    
     this.schema.createTable(this.tableName, (table) => {
       table.increments('id')
       table
@@ -84,5 +87,7 @@ export default class UserWallets extends BaseSchema {
 
   async down() {
     this.schema.dropTable(this.tableName)
+    // Drop the enum type as well
+    this.schema.raw('DROP TYPE IF EXISTS user_wallet_status CASCADE')
   }
 }

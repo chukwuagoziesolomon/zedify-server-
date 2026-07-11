@@ -43,6 +43,9 @@ export default class UserWallet extends BaseModel {
   public totalWithdrawn: number = 0 // Lifetime withdrawn amount
 
   @column()
+  public totalFiberReceived: number = 0 // Lifetime CKB/SUDT received via Fiber (in USDT)
+
+  @column()
   public status: 'active' | 'inactive' | 'archived' = 'active'
 
   @column.dateTime({ autoCreate: true })

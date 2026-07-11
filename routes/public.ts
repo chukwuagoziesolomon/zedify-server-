@@ -27,9 +27,11 @@ Route.post('/api/pay/:slug/checkout', 'PaymentLinkController.checkout')
 Route.post('/api/pay/:slug/wallet', 'PaymentLinkController.checkoutWallet')
 
 /**
- * GET /api/assets/available
- * Returns all available assets (crypto + network metadata) for the frontend.
+ * GET /api/storefront/:subdomain
+ * Public storefront data endpoint — used by the frontend /shop/:subdomain page.
+ * Returns shop info, products, theme, and checkout URL.
  */
+Route.get('/api/storefront/:subdomain', 'ShopBuilderController.storefront')
 Route.get('/api/assets/available', 'AvailableAssetController.index')
 
 /**

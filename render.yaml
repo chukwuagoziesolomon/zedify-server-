@@ -65,5 +65,11 @@ services:
         value: claude-haiku-4-5-20251001
       - key: SHOP_BASE_DOMAIN
         sync: false
+      - key: FIBER_NODE_URL
+        sync: false
+      - key: FIBER_BISCUIT_TOKEN
+        sync: false
+      - key: FIBER_NETWORK
+        value: testnet
       - key: CLIENT_URL
         sync: false

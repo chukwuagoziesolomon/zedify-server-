@@ -326,3 +326,128 @@ APP_ENV=production                       # controls LIVE vs TEST webhook URL sel
 | `ai_shop_conversations` | Full AI conversation history per shop |
 | `webhook_logs` | Every webhook delivery attempt, response, and retry |
 | `business_settings.webhook_signing_secret` | Per-merchant HMAC secret (new column) |
+
+---
+
+## Fiber Network (CKB Payment Channels)
+
+Fiber integration lets merchants **receive and send CKB payments** through payment channels instead of waiting for on-chain transactions every time.
+
+### How it works
+
+- The server creates a **Fiber invoice** for each checkout session when a customer selects a Fiber network asset.
+- The customer pays the invoice through the Fiber Network.
+- The server polls for payment status and, once paid, marks the payment intent as confirmed.
+- Webhooks, SSE events, and email notifications fire the same way as EVM/CKB payments.
+
+### FNN setup (testnet / mainnet)
+
+Current Fiber releases ship three binaries: `fnn` (node), `fnn-cli`, and `fnn-migrate`.
+
+1. Download the release from [github.com/nervosnetwork/fiber/releases](https://github.com/nervosnetwork/fiber/releases) and place `fnn` + `fnn-cli` on the VPS that will run the node.
+2. Copy the release `config/testnet/config.yml` (or `config/mainnet/config.yml`) into that same working directory.
+3. Prepare a CKB key for the node wallet (via `ckb-cli`) and place the exported key where FNN expects it.
+4. In `config.yml`, verify the RPC block uses `rpc.listening_addr` for the bind address, for example:
+   ```yaml
+   rpc:
+     listening_addr: 127.0.0.1:8227
+     enabled_modules:
+       - node
+       - channel
+       - payment
+       - invoice
+   ```
+   Keep the node bound to `127.0.0.1:8227`, not a public interface. If you need HTTPS exposure, put a reverse proxy in front of it on the VPS; do not bind FNN publicly.
+5. Start FNN:
+   ```bash
+   FIBER_SECRET_KEY_PASSWORD='your-strong-password' RUST_LOG=info ./fnn -c config.yml -d .
+   ```
+   The password encrypts the wallet key file; the node will not start without it.
+6. Verify from the same VPS:
+   ```bash
+   ./fnn-cli info
+   ```
+   FNN also accepts JSON-RPC POSTs on that port, e.g.:
+   ```bash
+   curl -X POST http://127.0.0.1:8227 \
+     -H 'Content-Type: application/json' \
+     -d '{"jsonrpc":"2.0","method":"node_info","params":[],"id":1}'
+   ```
+
+### Exposing FNN to Render
+
+FNN’s JSON-RPC endpoint is plain HTTP only. If Render needs to talk to it over the public internet, terminate TLS at a reverse proxy on the VPS instead of making FNN bind publicly.
+
+Example with Caddy:
+
+```text
+your-fnn-host.example.com {
+  reverse_proxy 127.0.0.1:8227
+}
+```
+
+With that setup:
+- FNN stays on `127.0.0.1:8227`
+- Caddy listens on `443` and forwards to FNN
+- This server’s `FIBER_NODE_URL` should point at the proxy, not FNN directly
+
+```env
+FIBER_NODE_URL=https://your-fnn-host.example.com
+FIBER_NETWORK=mainnet
+FIBER_BISCUIT_TOKEN=
+```
+
+If you skip the reverse proxy and expose FNN directly, that is discouraged. If you must, enable Biscuit auth in `config.yml` and generate a token with `biscuit-cli`, but treat that as a fallback, not the recommended architecture.
+
+### Biscuit tokens
+
+Biscuit tokens are capability tokens minted from your own FNN host. They are **not** fetched from an API. The flow is:
+
+1. Install `biscuit-cli` and generate an Ed25519 keypair:
+   ```bash
+   cargo install biscuit-cli --vers 0.6.0-beta.2
+   biscuit keypair
+   # → Private key: ed25519-private/...
+   # → Public key:  ed25519/...
+   ```
+2. Put the **public key** in your node's `config.yml` under `rpc.biscuit_public_key`.
+3. Write a permissions file, for example:
+   ```
+   read("node");
+   read("channels");
+   write("payments");
+   write("invoices");
+   check if time($time), $time <= 2026-12-31T00:00:00Z;
+   ```
+4. Sign a token:
+   ```bash
+   biscuit generate --private-key ed25519-private/... permissions.bc
+   ```
+5. Use the resulting Base64 string as `FIBER_BISCUIT_TOKEN` in this server's `.env`, sent as `Authorization: Bearer <token>`.
+
+Permissions are `read("<resource>")` / `write("<resource>")` per module (`node`, `channels`, `payments`, `invoices`, `graph`, `peers`, `cch`, `watchtower`, `pprof`). `write` does not imply `read`, so scope each token to only what the client needs.
+
+- **Local (`127.0.0.1`) or behind Caddy:** leave `FIBER_BISCUIT_TOKEN` empty.
+- **Direct public bind:** FNN docs explicitly discourage exposing the RPC port directly. If you do, you must set `rpc.biscuit_public_key`; Biscuit is one auth layer, not a substitute for network restriction.
+
+### Production checklist
+
+- VPS firewall should allow Caddy/443 inbound and outbound to wherever Render egress comes from.
+- Do not hardcode Render egress source IPs without verifying Render’s current docs; outbound IPs can vary by plan/region.
+- Run `node ace migration:run` after deploy so `payment_channels` and `fiber_invoices` exist.
+- Confirm `GET /api/user/fiber/node-info` returns the node’s real peer ID before wiring live checkout.
+
+### New Fiber endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/user/fiber/node-info` | FNN peer info |
+| `GET` | `/api/user/fiber/channels` | List channels |
+| `POST` | `/api/user/fiber/channels/open` | Open a channel |
+| `POST` | `/api/user/fiber/invoices` | Create a Fiber invoice |
+| `GET` | `/api/user/fiber/invoices/:address/check` | Check invoice/payment status |
+| `POST` | `/api/user/fiber/invoices/sync` | Sync all pending invoices |
+| `POST` | `/api/user/fiber/send` | Send a payment |
+| `GET` | `/api/user/fiber/payments/:hash` | Get payment status |
+| `GET` | `/api/user/fiber/invoices/:hash` | Get invoice details |
+| `POST` | `/api/user/fiber/channels/sync` | Sync channel balances/states |
