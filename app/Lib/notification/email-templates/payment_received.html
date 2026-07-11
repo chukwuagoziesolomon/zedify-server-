@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Received</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 40px 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 40px 30px;
+      text-align: center;
+      color: white;
+    }
+
+    .header-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    .header p {
+      font-size: 14px;
+      opacity: 0.9;
+      margin: 0;
+    }
+
+    .content {
+      padding: 40px 30px;
+    }
+
+    .greeting {
+      font-size: 16px;
+      color: #333;
+      margin-bottom: 25px;
+      line-height: 1.6;
+    }
+
+    .message {
+      background: #f8f9ff;
+      border-left: 4px solid #667eea;
+      padding: 20px;
+      border-radius: 4px;
+      margin-bottom: 30px;
+      font-size: 15px;
+      color: #555;
+      line-height: 1.6;
+    }
+
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin: 30px 0;
+    }
+
+    .detail-item {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+    }
+
+    .detail-label {
+      font-size: 12px;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+
+    .detail-value {
+      font-size: 16px;
+      color: #333;
+      font-weight: 600;
+      word-break: break-all;
+    }
+
+    .amount-section {
+      background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+      border: 2px solid #667eea;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 30px 0;
+      text-align: center;
+    }
+
+    .amount-label {
+      font-size: 12px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .amount-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #667eea;
+      margin-bottom: 10px;
+    }
+
+    .amount-subtitle {
+      font-size: 14px;
+      color: #999;
+    }
+
+    .transaction-info {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+
+    .transaction-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 14px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .transaction-row:last-child {
+      border-bottom: none;
+    }
+
+    .transaction-label {
+      color: #666;
+    }
+
+    .transaction-value {
+      color: #333;
+      font-weight: 600;
+      word-break: break-all;
+    }
+
+    .explorer-link {
+      display: inline-block;
+      margin-top: 15px;
+      padding: 10px 20px;
+      background: #667eea;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.3s;
+    }
+
+    .explorer-link:hover {
+      background: #764ba2;
+    }
+
+    .next-steps {
+      background: #f0fdf4;
+      border-left: 4px solid #10b981;
+      padding: 20px;
+      border-radius: 4px;
+      margin: 30px 0;
+    }
+
+    .next-steps h3 {
+      color: #059669;
+      margin-bottom: 12px;
+      font-size: 15px;
+    }
+
+    .next-steps p {
+      color: #555;
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .footer {
+      background: #f8f9fa;
+      padding: 30px;
+      border-top: 1px solid #eee;
+      text-align: center;
+      font-size: 13px;
+      color: #999;
+    }
+
+    .footer-links {
+      margin-top: 15px;
+    }
+
+    .footer-links a {
+      color: #667eea;
+      text-decoration: none;
+      margin: 0 10px;
+      font-size: 12px;
+    }
+
+    .footer-links a:hover {
+      text-decoration: underline;
+    }
+
+    .verified-badge {
+      display: inline-block;
+      background: #10b981;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+
+    @media (max-width: 600px) {
+      .details-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .container {
+        border-radius: 0;
+      }
+
+      .amount-value {
+        font-size: 24px;
+      }
+
+      .header h1 {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-icon">✓</div>
+      <h1>Payment Received</h1>
+      <p>Your payment has been successfully confirmed</p>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <p class="greeting">Hi {{businessName}},</p>
+
+      <div class="message">
+        A cryptocurrency payment for your business has been successfully received and confirmed on the blockchain. Your funds are now secure and ready for settlement.
+      </div>
+
+      <!-- Amount Section -->
+      <div class="amount-section">
+        <div class="amount-label">Amount Received</div>
+        <div class="amount-value">{{cryptoAmount}} {{cryptoCurrency}}</div>
+        <div class="amount-subtitle">≈ {{fiatAmount}} {{fiatCurrency}}</div>
+      </div>
+
+      <!-- Payment Details -->
+      <div class="details-grid">
+        <div class="detail-item">
+          <div class="detail-label">Payment ID</div>
+          <div class="detail-value">{{paymentId}}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">Reference</div>
+          <div class="detail-value">{{businessRefId}}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">Wallet Address</div>
+          <div class="detail-value" style="font-size: 13px;">{{walletAddress}}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">Confirmed At</div>
+          <div class="detail-value">{{confirmedAt}}</div>
+        </div>
+      </div>
+
+      <!-- Transaction Info -->
+      <div class="transaction-info">
+        <div class="transaction-row">
+          <span class="transaction-label">Transaction Hash:</span>
+          <span class="transaction-value" style="font-size: 12px;">{{transactionHash}}</span>
+        </div>
+        <a href="{{explorerUrl}}" class="explorer-link" target="_blank">View on Blockchain Explorer</a>
+      </div>
+
+      <!-- Next Steps -->
+      <div class="next-steps">
+        <h3>✓ What happens next?</h3>
+        <p>Your funds will be automatically processed according to your payout settings. The settlement process typically completes within 24 hours.</p>
+      </div>
+
+      <p style="color: #666; font-size: 14px; line-height: 1.6; margin: 20px 0;">
+        If you have any questions about this payment or need assistance, please don't hesitate to contact our support team.
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>This is an automated message from Wt Payments. Please do not reply to this email.</p>
+      <div class="footer-links">
+        <a href="#">Dashboard</a>
+        <a href="#">Documentation</a>
+        <a href="#">Support</a>
+      </div>
+      <p style="margin-top: 15px; color: #bbb;">© 2026 Wt Payments. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>

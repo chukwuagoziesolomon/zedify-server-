@@ -56,6 +56,13 @@ export default class extends BaseSeeder {
         isTestnet: true,
         chainKey: 'local', // Custom or future SDK mapping
       },
+      {
+        name: 'Nervos CKB Testnet',
+        logo: 'https://cryptologos.cc/logos/nervos-network-ckb-logo.png',
+        rpcUrl: Env.get('CKB_TESTNET_RPC', 'https://testnet.ckb.dev/rpc'),
+        isTestnet: true,
+        chainKey: 'ckb', // Non-EVM chain
+      },
     ])
 
     console.log('✅ CryptoNetwork seeder completed')

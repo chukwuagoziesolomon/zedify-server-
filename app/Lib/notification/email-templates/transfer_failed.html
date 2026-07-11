@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transfer Failed</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background-color: #f5f7fa; color: #333; }
+        .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 40px 20px; text-align: center; color: white; }
+        .header h1 { font-size: 28px; margin-bottom: 8px; }
+        .header p { font-size: 14px; opacity: 0.9; }
+        .content { padding: 40px 20px; }
+        .status-badge { display: inline-block; background: #fee2e2; color: #7f1d1d; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 12px; text-transform: uppercase; margin-bottom: 24px; }
+        .alert-icon { width: 80px; height: 80px; border-radius: 50%; background: #fee2e2; margin: 0 auto 24px; display: flex; align-items: center; justify-content: center; font-size: 40px; }
+        .detail-section { margin-bottom: 28px; }
+        .detail-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e5e7eb; }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-label { color: #6b7280; font-size: 14px; font-weight: 500; }
+        .detail-value { font-weight: 600; color: #111827; font-size: 16px; }
+        .error-box { background: #fee2e2; border-left: 4px solid #ef4444; padding: 16px; margin-bottom: 24px; border-radius: 4px; }
+        .error-box h3 { color: #7f1d1d; font-size: 16px; margin-bottom: 8px; }
+        .error-box p { color: #991b1b; font-size: 14px; }
+        .info-box { background: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; margin-bottom: 24px; border-radius: 4px; }
+        .info-box p { font-size: 14px; color: #7f1d1d; margin: 0; }
+        .cta-button { display: inline-block; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; margin-top: 20px; transition: opacity 0.2s; }
+        .cta-button:hover { opacity: 0.9; }
+        .secondary-button { display: inline-block; background: #f3f4f6; color: #374151; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; margin: 20px 12px 0 0; transition: opacity 0.2s; }
+        .secondary-button:hover { opacity: 0.9; }
+        .footer { background: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; }
+        .timeline { margin: 20px 0; }
+        .timeline-item { display: flex; margin-bottom: 16px; }
+        .timeline-icon { width: 32px; height: 32px; border-radius: 50%; background: #fee2e2; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 16px; flex-shrink: 0; color: #ef4444; }
+        .timeline-content { flex: 1; }
+        .timeline-content h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .timeline-content p { font-size: 13px; color: #6b7280; margin: 0; }
+        .refunded { color: #10b981; }
+        h2 { font-size: 18px; margin-bottom: 16px; color: #111827; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>⚠️ Transfer Failed</h1>
+            <p>Unfortunately, your transfer could not be completed</p>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <div class="status-badge">Failed</div>
+
+            <!-- Alert Icon -->
+            <div class="alert-icon">✕</div>
+
+            <div style="text-align: center; margin-bottom: 32px;">
+                <h2 style="font-size: 22px; color: #ef4444; margin-bottom: 8px;">Transfer Failed</h2>
+                <p style="color: #6b7280; font-size: 14px;">Your transfer could not be completed</p>
+            </div>
+
+            <!-- Error Details -->
+            <div class="error-box">
+                <h3>Reason for Failure</h3>
+                <p>{failureReason}</p>
+            </div>
+
+            <!-- Transfer Details -->
+            <div class="detail-section">
+                <h2>Transfer Details</h2>
+                <div class="detail-row">
+                    <span class="detail-label">USDT Amount</span>
+                    <span class="detail-value">{usdtAmount}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Naira Amount</span>
+                    <span class="detail-value">₦{nairaAmount}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Transfer ID</span>
+                    <span class="detail-value" style="font-family: monospace; font-size: 13px;">{transferId}</span>
+                </div>
+            </div>
+
+            <!-- Refund Status -->
+            <div class="info-box">
+                <p><strong style="color: #10b981; font-size: 16px;">✓ Refunded to Your Wallet</strong></p>
+                <p style="margin-top: 8px;">Your USDT has been automatically refunded to your wallet. You can check your balance in the dashboard.</p>
+            </div>
+
+            <!-- What You Can Do -->
+            <div class="detail-section">
+                <h2>What You Can Do</h2>
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <div class="timeline-icon">1</div>
+                        <div class="timeline-content">
+                            <h4>Review the Error</h4>
+                            <p>The reason for failure is listed above</p>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-icon">2</div>
+                        <div class="timeline-content">
+                            <h4>Verify Details</h4>
+                            <p>Double-check recipient account information</p>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-icon">3</div>
+                        <div class="timeline-content">
+                            <h4>Try Again</h4>
+                            <p>Retry the transfer with corrected information</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Common Reasons -->
+            <div style="background: #fef2f2; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
+                <h3 style="color: #7f1d1d; font-size: 14px; margin-bottom: 12px;">Common Reasons for Transfer Failure:</h3>
+                <ul style="color: #991b1b; font-size: 13px; padding-left: 20px; margin: 0; line-height: 1.6;">
+                    <li>Incorrect account number or bank code</li>
+                    <li>Insufficient balance in your wallet</li>
+                    <li>Bank account not found or inactive</li>
+                    <li>Transfer limit exceeded</li>
+                    <li>Bank maintenance or temporary network issues</li>
+                    <li>Account suspended or restricted</li>
+                </ul>
+            </div>
+
+            <!-- CTA -->
+            <div style="text-align: center; margin-top: 32px;">
+                <a href="{retryLink}" class="cta-button">Retry Transfer</a>
+                <a href="{dashboardLink}" class="secondary-button">Go to Dashboard</a>
+            </div>
+
+            <!-- Support -->
+            <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin-top: 24px; text-align: center;">
+                <p style="color: #6b7280; font-size: 13px; margin: 0;">Need help? Contact our support team</p>
+                <p style="color: #667eea; font-size: 13px; margin-top: 8px;"><a href="mailto:support@wtpayments.com" style="color: #667eea; text-decoration: none;">support@wtpayments.com</a></p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>This is an automated message. Please do not reply to this email.</p>
+            <p style="margin-top: 8px;">wt-payments • Secure Crypto Payments for Nigeria</p>
+        </div>
+    </div>
+</body>
+</html>

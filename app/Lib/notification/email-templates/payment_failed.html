@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Expired</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+      padding: 40px 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+      padding: 40px 30px;
+      text-align: center;
+      color: white;
+    }
+
+    .header-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    .header p {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .content {
+      padding: 40px 30px;
+    }
+
+    .greeting {
+      font-size: 16px;
+      color: #333;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .alert-box {
+      background: #fee2e2;
+      border-left: 4px solid #dc2626;
+      padding: 20px;
+      border-radius: 4px;
+      margin-bottom: 30px;
+    }
+
+    .alert-title {
+      color: #991b1b;
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-size: 15px;
+    }
+
+    .alert-message {
+      color: #7f1d1d;
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .reason-box {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 25px 0;
+    }
+
+    .reason-title {
+      color: #991b1b;
+      font-weight: 600;
+      margin-bottom: 15px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .reason-item {
+      display: flex;
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: #7f1d1d;
+    }
+
+    .reason-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .reason-icon {
+      color: #dc2626;
+      margin-right: 10px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .details-section {
+      background: #f9fafb;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 25px 0;
+    }
+
+    .detail-row {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 15px;
+      padding: 10px 0;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 14px;
+    }
+
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+
+    .detail-label {
+      color: #666;
+      font-weight: 500;
+    }
+
+    .detail-value {
+      color: #333;
+      font-weight: 600;
+    }
+
+    .action-section {
+      background: linear-gradient(135deg, #fef2f215 0%, #fecaca15 100%);
+      border: 2px dashed #fecaca;
+      padding: 25px;
+      border-radius: 8px;
+      margin: 30px 0;
+      text-align: center;
+    }
+
+    .action-title {
+      color: #991b1b;
+      font-weight: 600;
+      margin-bottom: 15px;
+      font-size: 15px;
+    }
+
+    .action-steps {
+      text-align: left;
+      margin-top: 15px;
+    }
+
+    .step {
+      display: flex;
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: #555;
+    }
+
+    .step-number {
+      background: #dc2626;
+      color: white;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 12px;
+      flex-shrink: 0;
+      margin-right: 12px;
+    }
+
+    .button-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 25px 0;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 20px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      text-align: center;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: #dc2626;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #991b1b;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+    }
+
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #1f2937;
+    }
+
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+
+    .info-box {
+      background: #f0f9ff;
+      border-left: 4px solid #0284c7;
+      padding: 20px;
+      border-radius: 4px;
+      margin: 20px 0;
+    }
+
+    .info-box p {
+      color: #0c4a6e;
+      font-size: 14px;
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    .footer {
+      background: #f9fafb;
+      padding: 30px;
+      border-top: 1px solid #e5e7eb;
+      text-align: center;
+      font-size: 13px;
+      color: #666;
+    }
+
+    .footer-links {
+      margin-top: 15px;
+    }
+
+    .footer-links a {
+      color: #dc2626;
+      text-decoration: none;
+      margin: 0 10px;
+      font-size: 12px;
+    }
+
+    .footer-links a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 600px) {
+      .button-group {
+        grid-template-columns: 1fr;
+      }
+
+      .container {
+        border-radius: 0;
+      }
+
+      .header h1 {
+        font-size: 24px;
+      }
+
+      .detail-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-icon">⏱️</div>
+      <h1>Payment Expired</h1>
+      <p>Your payment window has closed</p>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <p class="greeting">Hi {{businessName}},</p>
+
+      <div class="alert-box">
+        <div class="alert-title">Payment Not Received</div>
+        <p class="alert-message">
+          We did not receive payment for your payment intent within the specified timeframe. The payment window has expired and the wallet address is no longer active.
+        </p>
+      </div>
+
+      <!-- Why Payment Expired -->
+      <div class="reason-box">
+        <div class="reason-title">Why Did This Happen?</div>
+        <div class="reason-item">
+          <div class="reason-icon">•</div>
+          <div>Payment was not sent within the 1-hour window</div>
+        </div>
+        <div class="reason-item">
+          <div class="reason-icon">•</div>
+          <div>Incorrect wallet address was used</div>
+        </div>
+        <div class="reason-item">
+          <div class="reason-icon">•</div>
+          <div>Payment transaction was pending too long</div>
+        </div>
+      </div>
+
+      <!-- Payment Details -->
+      <div class="details-section">
+        <div class="detail-row">
+          <div class="detail-label">Payment ID</div>
+          <div class="detail-value">{{paymentId}}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Reference</div>
+          <div class="detail-value">{{businessRefId}}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Amount</div>
+          <div class="detail-value">{{fiatAmount}} {{fiatCurrency}}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Expired</div>
+          <div class="detail-value">{{expiredAt}}</div>
+        </div>
+      </div>
+
+      <!-- What to Do -->
+      <div class="action-section">
+        <div class="action-title">What Should You Do?</div>
+        <div class="action-steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div>Create a new payment intent</div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div>You'll receive a new wallet address</div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div>Send payment within 1 hour</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="button-group">
+        <a href="#" class="btn btn-primary">Create New Payment</a>
+        <a href="#" class="btn btn-secondary">Contact Support</a>
+      </div>
+
+      <!-- Additional Info -->
+      <div class="info-box">
+        <p>
+          <strong>Important:</strong> If you already sent payment to the original wallet address, it may still arrive. Please check your transaction status or contact our support team for assistance.
+        </p>
+      </div>
+
+      <p style="color: #666; font-size: 14px; line-height: 1.6; margin: 20px 0;">
+        If you have any questions or need help, our support team is here to assist you.
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>This is an automated message. Please do not reply to this email.</p>
+      <div class="footer-links">
+        <a href="#">Dashboard</a>
+        <a href="#">Support</a>
+        <a href="#">Documentation</a>
+      </div>
+      <p style="margin-top: 15px; color: #bbb;">© 2026 Wt Payments. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>

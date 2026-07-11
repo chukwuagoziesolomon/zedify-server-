@@ -13,6 +13,7 @@ export default class extends BaseSeeder {
     const bscNetwork = await CryptoNetwork.query().where('name', 'Binance Smart Chain').first()
     const baseNetwork = await CryptoNetwork.query().where('name', 'Base').first()
     const baseSepoliaNetwork = await CryptoNetwork.query().where('name', 'Base Sepolia Testnet').first()
+    const ckbTestnetNetwork = await CryptoNetwork.query().where('name', 'Nervos CKB Testnet').first()
 
     // Fiat Currency
     await Currency.create({
@@ -71,6 +72,19 @@ export default class extends BaseSeeder {
         cryptoNetworkId: baseSepoliaNetwork.uniqueId,
         ratePerUsd: 1,
         contractAddress: "0x1990BC6dfe2ef605Bfc08f5A23564dB75642Ad73" // USDT on Base Sepolia testnet
+      })
+    }
+
+    // CKB Native Token for Nervos CKB Testnet
+    if (ckbTestnetNetwork) {
+      await Currency.create({
+        type: CurrencyType.CRYPTO,
+        name: "Nervos CKB",
+        symbol: "CKB",
+        logo: `${Env.get('CLIENT_URL', 'http://localhost:3000')}/icons/ckb-logo.svg`,
+        cryptoNetworkId: ckbTestnetNetwork.uniqueId,
+        ratePerUsd: 0.005, // Approximate CKB price
+        contractAddress: null // Native token
       })
     }
 

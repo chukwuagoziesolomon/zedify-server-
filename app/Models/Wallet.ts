@@ -31,6 +31,30 @@ export default class Wallet extends BaseModel {
   @column()
   public userId: string // or businessId, depending on your naming
 
+  /**
+   * Reference ID for wallet reuse logic (e.g., payment-intent-id or business ref-id)
+   */
+  @column()
+  public refId?: string
+
+  /**
+   * Expiration time for wallet session (DateTime)
+   */
+  @column.dateTime()
+  public expiresAt?: DateTime
+
+  /**
+   * Whether this wallet is reusable (unused after session expiration)
+   */
+  @column()
+  public reusable?: boolean
+
+  /**
+   * Status of the wallet (e.g., 'active', 'expired', 'flushed')
+   */
+  @column()
+  public status?: string
+
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime
 

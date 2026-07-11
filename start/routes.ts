@@ -15,3 +15,11 @@ import '../routes/user/settings_general'
 import '../routes/user/settings_payout'
 import '../routes/user/currency'
 import '../routes/user/payment_intent'
+import '../routes/user/transfer'
+
+// Webhook routes for payment confirmations
+import '../routes/webhooks'
+import '../routes/webhooks/payout'
+
+// CKB test routes (temporary)
+import '../routes/test/ckb'

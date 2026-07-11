@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Admin Payment Notification</title>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap"
+			rel="stylesheet"
+		/>
+		<style>
+			:root {
+				--font-family: "Inter", Arial, sans-serif;
+				--background-color: #f4f4f4;
+				--container-bg-color: #f7f6fe;
+				--container-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+				--text-color: #333;
+				--secondary-text-color: #666;
+				--info-color: #3b82f6;
+				--info-bg: #eff6ff;
+				--footer-text-color: #999;
+				--border-color: #e0e0e0;
+			}
+			body {
+				font-family: var(--font-family);
+				background-color: var(--background-color);
+				margin: 0;
+				padding: 20px;
+			}
+			.container {
+				max-width: 600px;
+				margin: 0 auto;
+				padding: 2rem;
+				background: var(--container-bg-color);
+				border-radius: 5px;
+				box-shadow: var(--container-shadow);
+			}
+			.logo {
+				display: block;
+				width: 150px;
+				margin-bottom: 2rem;
+			}
+			.alert-badge {
+				background-color: var(--info-bg);
+				border: 2px solid var(--info-color);
+				border-radius: 50px;
+				width: 60px;
+				height: 60px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				margin: 0 auto 1.5rem;
+				font-size: 28px;
+				color: var(--info-color);
+			}
+			h1 {
+				color: var(--text-color);
+				font-size: 24px;
+				margin-bottom: 1rem;
+				text-align: center;
+			}
+			p {
+				color: var(--secondary-text-color);
+				font-size: 1rem;
+				line-height: 1.6;
+				margin-bottom: 1rem;
+			}
+			.payment-details {
+				background-color: #fff;
+				border: 1px solid var(--border-color);
+				border-radius: 5px;
+				padding: 1.5rem;
+				margin: 2rem 0;
+			}
+			.detail-row {
+				display: flex;
+				justify-content: space-between;
+				padding: 0.75rem 0;
+				border-bottom: 1px solid var(--border-color);
+			}
+			.detail-row:last-child {
+				border-bottom: none;
+			}
+			.detail-label {
+				color: var(--secondary-text-color);
+				font-weight: 600;
+				font-size: 0.95rem;
+			}
+			.detail-value {
+				color: var(--text-color);
+				font-weight: 700;
+				font-size: 0.95rem;
+			}
+			.txn-hash {
+				background-color: #f0f0f0;
+				padding: 0.75rem;
+				border-radius: 5px;
+				word-break: break-all;
+				font-family: monospace;
+				font-size: 0.75rem;
+				margin: 0.5rem 0;
+				color: var(--text-color);
+			}
+			.action-button {
+				background-color: var(--info-color);
+				color: white;
+				padding: 0.75rem 1.5rem;
+				border: none;
+				border-radius: 5px;
+				text-decoration: none;
+				display: inline-block;
+				margin: 1rem 0;
+				font-weight: 600;
+				cursor: pointer;
+			}
+			.action-button:hover {
+				background-color: #2563eb;
+			}
+			.footer-text {
+				color: var(--footer-text-color);
+				font-size: 0.85rem;
+				text-align: center;
+				margin-top: 2rem;
+				padding-top: 1rem;
+				border-top: 1px solid var(--border-color);
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<!-- Logo -->
+			<img src="cid:logo" alt="Logo" class="logo" />
+
+			<!-- Alert Badge -->
+			<div class="alert-badge">
+				<i class="fas fa-bell"></i>
+			</div>
+
+			<!-- Main Content -->
+			<h1>Payment Received Alert</h1>
+			<p>Hi {{adminName}},</p>
+			<p>
+				A crypto payment has been received and confirmed. Here are the details:
+			</p>
+
+			<!-- Payment Details -->
+			<div class="payment-details">
+				<div class="detail-row">
+					<span class="detail-label">Payment ID:</span>
+					<span class="detail-value">{{paymentId}}</span>
+				</div>
+				<div class="detail-row">
+					<span class="detail-label">Business ID:</span>
+					<span class="detail-value">{{businessId}}</span>
+				</div>
+				<div class="detail-row">
+					<span class="detail-label">Business Reference:</span>
+					<span class="detail-value">{{businessRefId}}</span>
+				</div>
+				<div class="detail-row">
+					<span class="detail-label">Fiat Amount:</span>
+					<span class="detail-value">{{fiatAmount}} {{fiatCurrency}}</span>
+				</div>
+				<div class="detail-row">
+					<span class="detail-label">Crypto Received:</span>
+					<span class="detail-value">{{cryptoAmount}} {{cryptoCurrency}}</span>
+				</div>
+				<div class="detail-row">
+					<span class="detail-label">Confirmed At:</span>
+					<span class="detail-value">{{confirmedAt}}</span>
+				</div>
+			</div>
+
+			<!-- Transaction Hash -->
+			<p style="margin-bottom: 0.5rem; font-weight: 600;">Transaction Hash:</p>
+			<div class="txn-hash">{{transactionHash}}</div>
+
+			<!-- Action Button -->
+			<div style="text-align: center">
+				<a href="{{explorerUrl}}" class="action-button" target="_blank">
+					View Transaction
+				</a>
+			</div>
+
+			<!-- Footer -->
+			<div class="footer-text">
+				<p>
+					This is an automated notification from the payment system.<br />
+					© 2025 Western Treasury. All rights reserved.
+				</p>
+			</div>
+		</div>
+	</body>
+</html>

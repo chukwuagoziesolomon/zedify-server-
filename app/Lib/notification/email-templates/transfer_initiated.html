@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transfer Initiated</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background-color: #f5f7fa; color: #333; }
+        .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center; color: white; }
+        .header h1 { font-size: 28px; margin-bottom: 8px; }
+        .header p { font-size: 14px; opacity: 0.9; }
+        .content { padding: 40px 20px; }
+        .status-badge { display: inline-block; background: #fef08a; color: #713f12; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 12px; text-transform: uppercase; margin-bottom: 24px; }
+        .detail-section { margin-bottom: 28px; }
+        .detail-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e5e7eb; }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-label { color: #6b7280; font-size: 14px; font-weight: 500; }
+        .detail-value { font-weight: 600; color: #111827; font-size: 16px; }
+        .amount-large { font-size: 28px; color: #667eea; font-weight: 700; }
+        .info-box { background: #f0f4ff; border-left: 4px solid #667eea; padding: 16px; margin-bottom: 24px; border-radius: 4px; }
+        .info-box p { font-size: 14px; color: #374151; margin: 0; }
+        .cta-button { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; margin-top: 20px; transition: opacity 0.2s; }
+        .cta-button:hover { opacity: 0.9; }
+        .footer { background: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; }
+        .timeline { margin: 20px 0; }
+        .timeline-item { display: flex; margin-bottom: 16px; }
+        .timeline-icon { width: 32px; height: 32px; border-radius: 50%; background: #e0e7ff; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 16px; flex-shrink: 0; }
+        .timeline-content { flex: 1; }
+        .timeline-content h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .timeline-content p { font-size: 13px; color: #6b7280; margin: 0; }
+        .success { color: #10b981; }
+        .pending { color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>💸 Transfer Initiated</h1>
+            <p>Your USDT transfer is being processed</p>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <div class="status-badge pending">Pending Settlement</div>
+
+            <div class="detail-section">
+                <h2 style="font-size: 18px; margin-bottom: 16px; color: #111827;">Transfer Amount</h2>
+                <div style="text-align: center; padding: 20px; background: #f9fafb; border-radius: 8px; margin-bottom: 16px;">
+                    <div style="color: #6b7280; font-size: 12px; margin-bottom: 8px;">You are sending</div>
+                    <div class="amount-large">{usdtAmount} USDT</div>
+                    <div style="color: #9ca3af; font-size: 13px; margin-top: 8px;">≈ ₦{nairaAmount}</div>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">Exchange Rate</span>
+                    <span class="detail-value">1 USDT = ₦{exchangeRate}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Platform Fee</span>
+                    <span class="detail-value">{fee} USDT</span>
+                </div>
+                <div class="detail-row" style="border-bottom: 2px solid #667eea; padding: 16px 0;">
+                    <span class="detail-label" style="font-weight: 700;">You will receive</span>
+                    <span class="detail-value" style="color: #10b981; font-size: 18px;">₦{netNairaAmount}</span>
+                </div>
+            </div>
+
+            <!-- Recipient Info -->
+            <div class="detail-section">
+                <h2 style="font-size: 18px; margin-bottom: 16px; color: #111827;">Recipient Details</h2>
+                <div class="detail-row">
+                    <span class="detail-label">Recipient Name</span>
+                    <span class="detail-value">{recipientName}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Recipient Type</span>
+                    <span class="detail-value" style="text-transform: capitalize;">{recipientType}</span>
+                </div>
+                {bankAccountDetails}
+            </div>
+
+            <!-- Timeline -->
+            <div class="detail-section">
+                <h2 style="font-size: 18px; margin-bottom: 16px; color: #111827;">What happens next</h2>
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <div class="timeline-icon success">✓</div>
+                        <div class="timeline-content">
+                            <h4>USDT Debited</h4>
+                            <p>Deducted from your wallet</p>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-icon pending">⏱</div>
+                        <div class="timeline-content">
+                            <h4>Settlement Processing</h4>
+                            <p>{estimatedSettlementTime}</p>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-icon">🏦</div>
+                        <div class="timeline-content">
+                            <h4>Naira Credit</h4>
+                            <p>Funds received in recipient account</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info Box -->
+            <div class="info-box">
+                <p><strong>Transfer ID:</strong> {transferId}</p>
+                <p style="margin-top: 8px;"><strong>Status:</strong> Pending • Updates will be sent to this email</p>
+            </div>
+
+            <!-- CTA -->
+            <div style="text-align: center; margin-top: 32px;">
+                <p style="color: #6b7280; font-size: 14px; margin-bottom: 16px;">You can track this transfer anytime in your dashboard</p>
+                <a href="{dashboardLink}" class="cta-button">View Transfer Status</a>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>This is an automated message. Please do not reply to this email.</p>
+            <p style="margin-top: 8px;">wt-payments • Secure Crypto Payments for Nigeria</p>
+        </div>
+    </div>
+</body>
+</html>
