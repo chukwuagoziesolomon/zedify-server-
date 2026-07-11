@@ -1,6 +1,7 @@
 import { DateTime } from 'luxon'
 import { BaseModel, column } from '@ioc:Adonis/Lucid/Orm'
 import { genRandomUuid } from 'App/helpers/utils'
+import { FeeBearer, CurrentEnvironment, PayoutInterval } from 'App/Lib/types'
 
 export default class BusinessSetting extends BaseModel {
   @column({ isPrimary: true })
@@ -31,13 +32,13 @@ export default class BusinessSetting extends BaseModel {
   public liveWebhookUrl: string
 
   @column()
-  public feeBearer: 'business' | 'customers'
+  public feeBearer: FeeBearer
 
   @column()
-  public currentEnvironment: 'live' | 'test'
+  public currentEnvironment: CurrentEnvironment
 
   @column()
-  public payoutInterval: 'instant' | 'daily' | 'weekly'
+  public payoutInterval: PayoutInterval
 
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime
