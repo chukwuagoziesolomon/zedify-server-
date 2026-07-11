@@ -18,7 +18,6 @@ Route.group(() => {
 
   // Transfer operations
   Route.get('/transfers', 'TransferController.getTransfers')
-  Route.get('/withdrawals/history', 'TransferController.getWithdrawalHistory')
   Route.get('/transfers/:id', 'TransferController.getTransfer')
   Route.post('/transfer/initiate', 'TransferController.initiateTransfer')
   Route.post('/transfer/:id/cancel', 'TransferController.cancelTransfer')

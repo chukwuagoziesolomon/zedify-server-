@@ -129,9 +129,3 @@ Route.group(() => {
    */
   Route.post('/create-wallet', 'PaymentIntentController.createWallet').middleware('auth:user')
 }).prefix('/api/user/payment-intent')
-
-/**
- * GET /api/user/payment-intent/history
- * Alias for /api/user/payment-intent/history (used by frontend).
- */
-Route.get('/api/user/payment-intent/history', 'PaymentIntentController.getTransactionHistory').middleware('auth:user')
