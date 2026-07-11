@@ -68,3 +68,10 @@ Route.group(() => {
    */
   Route.get('/', 'SettingsApiKeyController.show')
 }).prefix('/api/user/settings/api-key').middleware('auth:user')
+
+/**
+ * POST /api/user/settings/api-key/verify
+ * Public endpoint — verify a secret key is valid (no auth required, key IS the auth).
+ * Body: { secret_key }
+ */
+Route.post('/api/user/settings/api-key/verify', 'SettingsApiKeyController.verify')

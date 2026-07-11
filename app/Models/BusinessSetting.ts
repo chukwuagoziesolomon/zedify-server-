@@ -43,6 +43,9 @@ export default class BusinessSetting extends BaseModel {
   @column()
   public payoutType: string
 
+  @column()
+  public webhookSigningSecret: string | null
+
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime
 

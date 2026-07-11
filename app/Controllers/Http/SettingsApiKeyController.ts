@@ -82,4 +82,41 @@ export default class SettingsApiKeyController extends RolesController {
       response.status(400).json(await formatErrorMessage(error))
     }
   }
+
+  /**
+   * POST /api/user/settings/api-key/verify
+   * Verify a secret key is valid (for developers to test their integration).
+   * Body: { secret_key }
+   */
+  public async verify({ request, response }: HttpContextContract) {
+    try {
+      const secretKey = request.input('secret_key')
+      if (!secretKey) throw new Error('secret_key is required.')
+
+      const isLive = String(secretKey).startsWith('sk_live_')
+      const isTest = String(secretKey).startsWith('sk_test_')
+      if (!isLive && !isTest) throw new Error('Invalid key format.')
+
+      // Look up which business owns this key by checking hash
+      const settings = await BusinessSetting.query().whereNotNull(
+        isLive ? 'live_private_key' : 'test_private_key'
+      )
+
+      for (const setting of settings) {
+        const stored = isLive ? setting.livePrivateKey : setting.testPrivateKey
+        if (!stored) continue
+        const valid = await Hash.verify(stored, secretKey)
+        if (valid) {
+          return response.ok(formatSuccessMessage('Key is valid', {
+            environment: isLive ? CurrentEnvironment.LIVE : CurrentEnvironment.TEST,
+            business_id: setting.businessId,
+          }))
+        }
+      }
+
+      return response.status(401).json({ error: true, data: 'Invalid or expired key.', code: 401 })
+    } catch (error) {
+      return response.status(400).json(await formatErrorMessage(error))
+    }
+  }
 }

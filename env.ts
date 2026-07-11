@@ -72,4 +72,12 @@ export default Env.rules({
 	CKB_TESTNET_RPC: Env.schema.string.optional(),
 
 	CLIENT_URL: Env.schema.string.optional(),
+
+	// -------------------------------------------------------------------------
+	// AI Shop Builder (OpenRouter)
+	// -------------------------------------------------------------------------
+	OPENROUTER_API_KEY: Env.schema.string.optional(),
+	OPENROUTER_PRIMARY_MODEL: Env.schema.string.optional(),
+	OPENROUTER_FALLBACK_MODEL: Env.schema.string.optional(),
+	SHOP_BASE_DOMAIN: Env.schema.string.optional(),
 })

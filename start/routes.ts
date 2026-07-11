@@ -21,6 +21,8 @@ import '../routes/user/transfer'
 import '../routes/user/payment_link'
 import '../routes/user/sse'
 import '../routes/user/withdrawal'
+import '../routes/user/shop_builder'
+import '../routes/user/shop_products'
 
 // Webhook routes for payment confirmations
 import '../routes/webhooks'

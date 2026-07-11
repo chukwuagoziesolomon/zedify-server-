@@ -12,6 +12,7 @@ import EmailNotificationService from './EmailNotificationService'
 import EVMService from './EVMService'
 import SettlementService from './SettlementService'
 import SseService from './SseService'
+import WebhookDispatcherService from './WebhookDispatcherService'
 import { PaymentIntentStatus } from 'App/Lib/types'
 
 interface WebhookPayload {
@@ -274,67 +275,16 @@ export class PaymentIndexerService {
    */
   private async dispatchWebhook(paymentIntent: PaymentIntent, txHash: string): Promise<void> {
     try {
-      const setting = await BusinessSetting.query()
-        .where('businessId', paymentIntent.businessId)
-        .firstOrFail()
-
-      const isProduction = Env.get('APP_ENV', 'development') === 'production'
-      const webhookUrl = isProduction ? setting.liveWebhookUrl : setting.testWebhookUrl
-
-      if (!webhookUrl) {
-        Logger.warn(
-          `[PaymentIndexer] No webhook URL configured for business ${paymentIntent.businessId}`
-        )
-        return
-      }
-
-      const payload = {
-        event: 'payment.confirmed',
-        data: {
-          paymentId: paymentIntent.uniqueId,
-          businessReferenceId: paymentIntent.businessReferenceId,
-          amount: paymentIntent.fiatAmount,
-          currency: paymentIntent.fiatCurrencyId,
-          transactionHash: txHash,
-          confirmedAt: paymentIntent.completedAt,
-        },
-      }
-
-      await this.sendWebhookWithRetry(webhookUrl, payload, 3)
+      await WebhookDispatcherService.dispatch(paymentIntent.businessId, 'payment.confirmed', {
+        paymentId: paymentIntent.uniqueId,
+        businessReferenceId: paymentIntent.businessReferenceId,
+        amount: paymentIntent.fiatAmount,
+        currency: paymentIntent.fiatCurrencyId,
+        transactionHash: txHash,
+        confirmedAt: paymentIntent.completedAt,
+      })
     } catch (error) {
       Logger.warn(`[PaymentIndexer] Failed to dispatch webhook: ${error}`)
-    }
-  }
-
-  /**
-   * Send webhook with exponential backoff retry
-   */
-  private async sendWebhookWithRetry(url: string, payload: object, retries: number = 3): Promise<void> {
-    for (let attempt = 0; attempt < retries; attempt++) {
-      try {
-        const body = JSON.stringify(payload)
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Webhook-Signature': this.generateSignature(body),
-          },
-          body,
-        })
-
-        if (response.ok) {
-          Logger.info(`[PaymentIndexer] Webhook delivered to ${url}`)
-          return
-        }
-
-        throw new Error(`HTTP ${response.status}`)
-      } catch (error) {
-        if (attempt === retries - 1) {
-          Logger.error(`[PaymentIndexer] Webhook failed after ${retries} attempts: ${error}`)
-          throw error
-        }
-        await new Promise((resolve) => setTimeout(resolve, Math.pow(2, attempt) * 1000))
-      }
     }
   }
 

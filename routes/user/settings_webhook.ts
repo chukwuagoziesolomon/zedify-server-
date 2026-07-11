@@ -91,4 +91,13 @@ Route.group(() => {
    *                   type: string
    */
   Route.get('/', 'SettingsWebhookController.show')
+
+  /** POST /api/user/settings/webhook/secret/generate — Generate / rotate signing secret */
+  Route.post('/secret/generate', 'SettingsWebhookController.generateSecret')
+
+  /** POST /api/user/settings/webhook/verify — Send a test ping to the saved URL */
+  Route.post('/verify', 'SettingsWebhookController.verifyUrl')
+
+  /** GET /api/user/settings/webhook/logs — View recent delivery attempts */
+  Route.get('/logs', 'SettingsWebhookController.logs')
 }).prefix('/api/user/settings/webhook').middleware('auth:user')
