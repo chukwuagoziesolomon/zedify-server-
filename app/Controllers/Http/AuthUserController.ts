@@ -1,6 +1,6 @@
 import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
 import User from "App/Models/User";
-import { schema, rules } from '@ioc:Adonis/Core/Validator'
+import { schema } from '@ioc:Adonis/Core/Validator'
 import { formatErrorMessage, formatSuccessMessage } from 'App/helpers/utils';
 import { createHmac } from "crypto";
 import Env from '@ioc:Adonis/Core/Env'
