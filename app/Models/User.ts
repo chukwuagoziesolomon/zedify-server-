@@ -55,6 +55,12 @@ export default class User extends BaseModel {
   @column()
   public shareholdersApprovalLetter: any
 
+  @column()
+  public profileImage: string | null
+
+  @column()
+  public profileImagePublicId: string | null
+
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime
 

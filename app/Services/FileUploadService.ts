@@ -132,6 +132,17 @@ export class FileUploadService {
   }
 
   /**
+   * Upload a profile image to Cloudinary.
+   */
+  public async uploadProfileImage(
+    file: MultipartFileContract,
+    userId: string
+  ): Promise<UploadedFile> {
+    this.validateImageFile(file)
+    return this.uploadFile(file, `profile-images/${userId}`)
+  }
+
+  /**
    * Upload file to storage
    */
   private async uploadFile(

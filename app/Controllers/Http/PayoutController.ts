@@ -29,6 +29,8 @@ export default class PayoutController extends RolesController {
           currency_id: payout.currencyId,
           bank_account_no: payout.bankAccountNo,
           bank_name: payout.bankName,
+          account_name: payout.accountName,
+          bank_code: payout.bankCode,
         }
       }
       response.status(200).json(formatSuccessMessage('Settings retrieved successfully', data))
@@ -53,6 +55,8 @@ export default class PayoutController extends RolesController {
       payout.currencyId = payload.currency_id || null
       payout.bankAccountNo = payload.bank_account_no || null
       payout.bankName = payload.bank_name || null
+      payout.accountName = (payload as any).account_name || null
+      payout.bankCode = (payload as any).bank_code || null
       payout.isDeleted = false
       await payout.save()
       response.status(200).json(formatSuccessMessage('Payout details updated successfully', null))

@@ -19,6 +19,12 @@ export default class PayoutDetailValidator {
     bank_name: schema.string.optional({}, [
       rules.requiredWhen('type', '=', PayoutType.FIAT),
     ]),
+    account_name: schema.string.optional({}, [
+      rules.requiredWhen('type', '=', PayoutType.FIAT),
+    ]),
+    bank_code: schema.string.optional({}, [
+      rules.requiredWhen('type', '=', PayoutType.FIAT),
+    ]),
   })
 
   public messages = {
@@ -28,5 +34,7 @@ export default class PayoutDetailValidator {
     'currency_id.requiredWhen': 'currency_id is required for FIAT payout',
     'bank_account_no.requiredWhen': 'bank_account_no is required for FIAT payout',
     'bank_name.requiredWhen': 'bank_name is required for FIAT payout',
+    'account_name.requiredWhen': 'account_name is required for FIAT payout',
+    'bank_code.requiredWhen': 'bank_code is required for FIAT payout',
   }
 }

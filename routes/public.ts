@@ -31,3 +31,9 @@ Route.post('/api/pay/:slug/wallet', 'PaymentLinkController.checkoutWallet')
  * Returns all available assets (crypto + network metadata) for the frontend.
  */
 Route.get('/api/assets/available', 'AvailableAssetController.index')
+
+/**
+ * GET /available-assets
+ * Alias for /api/assets/available (used by frontend without /api prefix).
+ */
+Route.get('/available-assets', 'AvailableAssetController.index')

@@ -141,7 +141,7 @@ export default class AuthUserController {
       }
 
       const token = await auth.use('user').attempt(email, password, {
-        expiresIn: '5 mins'
+        expiresIn: '1 hour'
       })
 
       response.status(200).json(await formatSuccessMessage("Login successful", token))

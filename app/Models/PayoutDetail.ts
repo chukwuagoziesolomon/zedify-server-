@@ -32,6 +32,12 @@ export default class PayoutDetail extends BaseModel {
   public bankName: string | null
 
   @column()
+  public accountName: string | null
+
+  @column()
+  public bankCode: string | null
+
+  @column()
   public isDeleted: boolean = false
 
   @column.dateTime({ autoCreate: true })

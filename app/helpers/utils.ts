@@ -20,8 +20,6 @@ export function formatErrorMessage(error: any) {
   let data: string;
   let code: number;
 
-  console.error(error)
-
   if (
     error &&
     Array.isArray(error.errors) &&
@@ -40,7 +38,7 @@ export function formatErrorMessage(error: any) {
     return {
       error: true,
       message: 'Validation failed',
-      errors: error.messages,
+      errors: error.messages?.errors ?? error.messages,
       code: 422,
     };
   } else if (error && error.code === 'E_INVALID_AUTH_UID') {
@@ -71,12 +69,14 @@ export function formatErrorMessage(error: any) {
     code = 500;
   }
 
-  console.error({
-    code: error.code,
-    data: data,
-    message: error.message,
-    stack: error.stack
-  })
+  if (!code || code >= 500) {
+    console.error({
+      code: error.code,
+      data: data,
+      message: error.message,
+      stack: error.stack
+    })
+  }
 
   return {
     error: true,

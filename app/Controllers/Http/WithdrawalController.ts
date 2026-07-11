@@ -5,6 +5,9 @@ import WithdrawalService from 'App/Services/WithdrawalService'
 import UserWallet from 'App/Models/UserWallet'
 import Currency from 'App/Models/Currency'
 import CryptoNetwork from 'App/Models/CryptoNetwork'
+import Transfer from 'App/Models/Transfer'
+import User from 'App/Models/User'
+import PayoutDetail from 'App/Models/PayoutDetail'
 
 export default class WithdrawalController extends RolesController {
 
@@ -109,19 +112,29 @@ export default class WithdrawalController extends RolesController {
           recipientAddress: body.recipient_address,
         }
       } else {
-        if (!body.bank_name) throw new Error('bank_name is required.')
-        if (!body.account_number) throw new Error('account_number is required.')
-        if (!body.bank_code) throw new Error('bank_code is required.')
-        if (!body.account_name) throw new Error('account_name is required.')
+        // Load bank details from saved payout settings — never from request body
+        const payoutDetail = await PayoutDetail.query()
+          .where('userId', userId)
+          .where('isDeleted', false)
+          .where('type', 'FIAT')
+          .first()
+
+        if (!payoutDetail) {
+          throw new Error('No bank account found. Please add your bank account in Settings > Payout before withdrawing.')
+        }
+        if (!payoutDetail.bankAccountNo) throw new Error('Bank account number is missing in your payout settings.')
+        if (!payoutDetail.bankName) throw new Error('Bank name is missing in your payout settings.')
+        if (!payoutDetail.bankCode) throw new Error('Bank code is missing in your payout settings.')
+        if (!payoutDetail.accountName) throw new Error('Account name is missing in your payout settings.')
 
         payload = {
           type: 'fiat',
           userWalletId: body.user_wallet_id,
           amount,
-          bankName: body.bank_name,
-          accountNumber: body.account_number,
-          bankCode: body.bank_code,
-          accountName: body.account_name,
+          bankName: payoutDetail.bankName,
+          accountNumber: payoutDetail.bankAccountNo,
+          bankCode: payoutDetail.bankCode,
+          accountName: payoutDetail.accountName,
         }
       }
 
@@ -169,6 +182,34 @@ export default class WithdrawalController extends RolesController {
         status: result.status,
         tx_hash: result.txHash ?? null,
       }))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * GET /user/withdrawals/history
+   * Returns paginated withdrawal (transfer) history for the authenticated user.
+   * Query: page, limit, status
+   */
+  public async history({ request, response, auth }: HttpContextContract) {
+    try {
+      const uniqueId = this.allowOnlyLoggedInUsers(auth)
+      const page = Number(request.input('page', 1)) || 1
+      const limit = Number(request.input('limit', 20)) || 20
+      const status = request.input('status')
+
+      const user = await User.query().where('uniqueId', uniqueId).firstOrFail()
+
+      const query = Transfer.query().where('senderUserId', user.id)
+
+      if (status) {
+        query.where('status', String(status))
+      }
+
+      const transfers = await query.orderBy('createdAt', 'desc').paginate(page, limit)
+
+      return response.ok(formatSuccessMessage('Withdrawal history fetched', transfers))
     } catch (error) {
       return response.badRequest(await formatErrorMessage(error))
     }

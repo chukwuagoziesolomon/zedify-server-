@@ -22,3 +22,10 @@ Route.group(() => {
    */
   Route.post('/confirm', 'WithdrawalController.confirm')
 }).prefix('/api/user/withdrawal').middleware('auth:user')
+
+/**
+ * GET /user/withdrawals/history
+ * Paginated withdrawal history for the authenticated user.
+ * Query: page, limit, status
+ */
+Route.get('/user/withdrawals/history', 'WithdrawalController.history').middleware('auth:user')

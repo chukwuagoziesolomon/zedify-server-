@@ -10,6 +10,7 @@ import '../routes/admin/crypto_network'
 import '../routes/admin/dashboard'
 
 import '../routes/user/user'
+import '../routes/user/account_info'
 import '../routes/user/settings_api_key'
 import '../routes/user/settings_webhook'
 import '../routes/user/settings_general'
