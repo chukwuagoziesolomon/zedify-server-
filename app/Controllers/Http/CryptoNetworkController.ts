@@ -1,7 +1,7 @@
 import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
 import { schema } from '@ioc:Adonis/Core/Validator'
 import CryptoNetwork from 'App/Models/CryptoNetwork'
-import { formatErrorMessage, formatSuccessMessage } from 'App/helpers/utils'
+import { formatErrorMessage } from 'App/helpers/utils'
 import RolesController from './RolesController'
 
 export default class CryptoNetworkController extends RolesController {

@@ -77,7 +77,7 @@ export default class AuthUserController {
         businessName: payload.business_name,
         businessType: payload.business_type,
         bvn: payload.bvn,
-        cacNumber: payload.business_type === 'registered' ? payload.cac_number : null,
+        cacNumber: payload.business_type === 'registered' ? payload.cac_number : undefined,
       })
 
       // Upload files for registered businesses
