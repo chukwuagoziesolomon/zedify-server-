@@ -7,3 +7,4 @@ Route.get('/', async () => {
 import '../routes/user/user'
 import '../routes/admin/admin'
 import '../routes/admin/currency'
+import '../routes/admin/crypto_network'
