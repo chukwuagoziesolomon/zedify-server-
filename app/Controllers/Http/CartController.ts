@@ -8,11 +8,10 @@ import Shop from 'App/Models/Shop'
 import PaymentIntent from 'App/Models/PaymentIntent'
 import Currency from 'App/Models/Currency'
 import CryptoNetwork from 'App/Models/CryptoNetwork'
-import BusinessCurrency from 'App/Models/BusinessCurrency'
+import BusinessCurrencyController from './BusinessCurrencyController'
 import User from 'App/Models/User'
 import { genRandomUuid } from 'App/helpers/utils'
-import { PaymentIntentStatus } from 'App/Lib/types'
-import { CurrencyType } from 'App/Lib/types'
+import { PaymentIntentStatus, CurrencyType } from 'App/Lib/types'
 import SseService from 'App/Services/SseService'
 import PaymentSetupService from 'App/Services/PaymentSetupService'
 
@@ -303,24 +302,23 @@ export default class CartController extends RolesController {
         }))
       }
 
-      const activeCurrencies = await BusinessCurrency.query().where('userId', shop.userId)
+      const activeCurrencies = await BusinessCurrencyController.getActiveCurrenciesForBusiness(shop.userId)
       const assets = await Promise.all(
-        activeCurrencies.map(async (bc) => {
-          const currency = await Currency.query().where('uniqueId', bc.currencyId).first()
+        activeCurrencies.map(async (currency) => {
           let network: { name: string; logo: string } | null = null
           let amount = 0
 
-          if (currency && currency.type === CurrencyType.CRYPTO) {
-            const cryptoNetwork = await CryptoNetwork.query().where('uniqueId', currency.cryptoNetworkId).first()
+          if (currency.type === CurrencyType.CRYPTO) {
+            const cryptoNetwork = currency.cryptoNetwork
             if (cryptoNetwork) network = { name: cryptoNetwork.name, logo: cryptoNetwork.logo }
             amount = fiatAmount
           }
 
           return {
-            currency_id: currency?.uniqueId || '',
-            name: currency?.name || '',
-            symbol: currency?.symbol || '',
-            logo: currency?.logo || '',
+            currency_id: currency.uniqueId,
+            name: currency.name,
+            symbol: currency.symbol,
+            logo: currency.logo || '',
             network,
             amount,
           }
