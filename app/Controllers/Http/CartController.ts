@@ -329,7 +329,7 @@ export default class CartController extends RolesController {
         }))
       }
 
-      const activeCurrencies = await BusinessCurrency.query().where('businessId', shop.userId)
+      const activeCurrencies = await BusinessCurrency.query().where('userId', shop.userId)
       const assets = await Promise.all(
         activeCurrencies.map(async (bc) => {
           const currency = await Currency.query().where('uniqueId', bc.currencyId).first()
