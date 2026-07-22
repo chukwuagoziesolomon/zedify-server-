@@ -528,6 +528,20 @@ export class PaymentIndexerService {
         notificationData
       )
 
+      // Send to customer if this was a cart checkout
+      if (paymentIntent.customerId) {
+        await EmailNotificationService.sendCustomerOrderConfirmationEmail(
+          paymentIntent.customerId,
+          {
+            referenceId: paymentIntent.businessReferenceId,
+            shopName: (await User.query().where('uniqueId', paymentIntent.businessId).first())?.businessName || 'Store',
+            fiatAmount: Number(paymentIntent.fiatAmount),
+            fiatCurrency: fiatCurrency.symbol,
+            confirmedAt: paymentIntent.completedAt ? paymentIntent.completedAt.toJSDate() : new Date(),
+          }
+        )
+      }
+
       Logger.info(
         `[PaymentIndexer] Email notifications sent for payment ${paymentIntent.uniqueId}`
       )

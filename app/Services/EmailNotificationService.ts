@@ -359,6 +359,44 @@ export class EmailNotificationService {
   }
 
   /**
+   * Send order confirmation to customer
+   */
+  async sendCustomerOrderConfirmationEmail(
+    customerId: string,
+    data: {
+      referenceId: string
+      shopName: string
+      fiatAmount: number
+      fiatCurrency: string
+      confirmedAt: Date
+    }
+  ): Promise<void> {
+    try {
+      const customer = await User.query().where('uniqueId', customerId).firstOrFail()
+
+      const emailData = {
+        customerName: customer.businessName || customer.email,
+        referenceId: data.referenceId,
+        shopName: data.shopName,
+        fiatAmount: data.fiatAmount.toFixed(2),
+        fiatCurrency: data.fiatCurrency,
+        confirmedAt: data.confirmedAt.toLocaleString(),
+      }
+
+      await this.notificationService.sendEmail({
+        to: customer.email,
+        subject: `Order Confirmed — ${data.referenceId}`,
+        template: 'customer_order_confirmed',
+        replacements: emailData,
+      })
+
+      Logger.info(`[EmailNotification] Customer confirmation email sent to ${customer.email}`)
+    } catch (error) {
+      Logger.warn(`[EmailNotification] Failed to send customer confirmation email: ${error}`)
+    }
+  }
+
+  /**
    * Get blockchain explorer URL based on network
    */
   private getExplorerUrl(

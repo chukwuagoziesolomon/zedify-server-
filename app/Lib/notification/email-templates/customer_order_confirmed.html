@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Confirmed</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background: #f3f4f6; padding: 40px 20px; }
+    .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); overflow: hidden; }
+    .header { background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 30px; text-align: center; color: white; }
+    .header h1 { font-size: 24px; margin-bottom: 6px; }
+    .header p { opacity: 0.9; font-size: 14px; }
+    .content { padding: 30px; }
+    .greeting { font-size: 16px; color: #111827; margin-bottom: 20px; }
+    .details-card { background: #f9fafb; padding: 20px; border-radius: 10px; margin: 20px 0; }
+    .detail-row { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { color: #6b7280; font-weight: 500; }
+    .detail-value { color: #111827; font-weight: 600; }
+    .footer { background: #f9fafb; padding: 20px; text-align: center; font-size: 13px; color: #6b7280; border-top: 1px solid #e5e7eb; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Order Confirmed!</h1>
+      <p>Your payment has been received and your order is confirmed</p>
+    </div>
+    <div class="content">
+      <p class="greeting">Hi {{customerName}},</p>
+      <p style="color:#374151; line-height:1.6;">Thank you for your purchase! Your payment has been confirmed and your order is now being processed.</p>
+
+      <div class="details-card">
+        <div class="detail-row">
+          <div class="detail-label">Reference ID</div>
+          <div class="detail-value">{{referenceId}}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Shop</div>
+          <div class="detail-value">{{shopName}}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Amount Paid</div>
+          <div class="detail-value">{{fiatAmount}} {{fiatCurrency}}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Status</div>
+          <div class="detail-value">Confirmed</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Date</div>
+          <div class="detail-value">{{confirmedAt}}</div>
+        </div>
+      </div>
+
+      <p style="color:#6b7280; font-size:14px; line-height:1.6;">
+        You will receive updates as your order is processed. If you have any questions, please contact the shop directly.
+      </p>
+    </div>
+    <div class="footer">
+      <p>This is an automated message. Please do not reply to this email.</p>
+      <p style="margin-top:10px; color:#9ca3af;">© 2026 Wt Payments. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>

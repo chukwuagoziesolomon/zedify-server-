@@ -22,4 +22,7 @@ Route.group(() => {
 
   /** POST /api/user/cart/checkout — Create payment intent from cart */
   Route.post('/checkout', 'CartController.checkout')
+
+  /** POST /api/user/cart/wallet — Get wallet address for selected crypto currency */
+  Route.post('/wallet', 'CartController.checkoutWallet')
 }).prefix('/api/user/cart').middleware('auth:user')

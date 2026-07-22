@@ -36,6 +36,12 @@ export default class PaymentIntent extends BaseModel {
   @column()
   public walletId: string | null
 
+  @column()
+  public customerId: string | null
+
+  @column()
+  public customerEmail: string | null
+
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime
 
