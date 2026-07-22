@@ -19,6 +19,7 @@ export default class CartController extends RolesController {
   private async emitCartEvent(userId: string, event: string, data: any) {
     SseService.emit(userId, { event: event as any, data })
   }
+
   /**
    * GET /api/user/cart
    * Returns the authenticated user's cart with items and totals.
@@ -59,7 +60,7 @@ export default class CartController extends RolesController {
         }
       }).filter(Boolean)
 
-      const total = itemsWithDetails.reduce((sum, item: any) => sum + item.price * item.quantity, 0)
+      const total = itemsWithDetails.reduce((sum: any, item: any) => sum + item.price * item.quantity, 0)
 
       return response.ok(formatSuccessMessage('Cart retrieved', {
         cart_id: cart.uniqueId,
@@ -215,10 +216,9 @@ export default class CartController extends RolesController {
 
   /**
    * POST /api/user/cart/checkout
-   * Create a PaymentIntent from the cart items.
+   * Create a PaymentIntent from the authenticated user's cart items.
    * Body: { fiat_currency?, payment_method? }
    * payment_method: 'crypto' | 'paystack'
-   * Returns: reference_id + available crypto currencies + wallet address or paystack url.
    */
   public async checkout({ auth, request, response }: HttpContextContract) {
     try {
@@ -270,9 +270,8 @@ export default class CartController extends RolesController {
 
       if (payment_method === 'paystack') {
         const PaystackChargeService = (await import('App/Services/PaystackChargeService')).default
-        const user = await User.query().where('uniqueId', userId).firstOrFail()
         const charge = await PaystackChargeService.initializeCharge({
-          email: user.email,
+          email: customer.email,
           amountNaira: fiatAmount,
           reference: referenceId,
           metadata: {
@@ -309,7 +308,7 @@ export default class CartController extends RolesController {
           let amount = 0
 
           if (currency.type === CurrencyType.CRYPTO) {
-            const cryptoNetwork = currency.cryptoNetwork
+            const cryptoNetwork = (currency as any).cryptoNetwork
             if (cryptoNetwork) network = { name: cryptoNetwork.name, logo: cryptoNetwork.logo }
             amount = fiatAmount
           }
@@ -352,15 +351,17 @@ export default class CartController extends RolesController {
    * Selects a crypto currency for a cart checkout and returns a wallet address.
    * Body: { payment_intent_id, crypto_currency_id }
    */
-  public async checkoutWallet({ auth, request, response }: HttpContextContract) {
+  public async checkoutWallet({ request, response }: HttpContextContract) {
     try {
-      const userId = this.allowOnlyLoggedInUsers(auth)
       const { payment_intent_id, crypto_currency_id } = request.only(['payment_intent_id', 'crypto_currency_id'])
 
       if (!payment_intent_id) throw new Error('payment_intent_id is required')
       if (!crypto_currency_id) throw new Error('crypto_currency_id is required')
 
       const intent = await PaymentIntent.query().where('uniqueId', payment_intent_id).firstOrFail()
+
+      const businessUser = await User.query().where('uniqueId', intent.businessId).firstOrFail()
+      const userIntId = businessUser.id
 
       const cryptoCurrency = await Currency.query().where('uniqueId', crypto_currency_id).first()
       if (!cryptoCurrency || cryptoCurrency.type !== CurrencyType.CRYPTO) {
@@ -370,11 +371,167 @@ export default class CartController extends RolesController {
       const cryptoNetwork = await CryptoNetwork.query().where('uniqueId', cryptoCurrency.cryptoNetworkId).first()
       if (!cryptoNetwork) throw new Error('Crypto network not found')
 
-      const user = await User.query().where('uniqueId', userId).firstOrFail()
       const setup = await PaymentSetupService.createPaymentSetup({
         paymentIntent: intent,
         userUniqueId: intent.businessId,
-        userIntId: user.id,
+        userIntId,
+        cryptoCurrency,
+        referenceId: intent.businessReferenceId,
+      })
+
+      return response.ok({
+        error: false,
+        data: {
+          payment_intent_id: intent.uniqueId,
+          reference_id: intent.businessReferenceId,
+          expiration_time: '1800',
+          fee_in_crypto: 0,
+          wallet: setup.wallet,
+          fiat: setup.fiat,
+          crypto: setup.crypto,
+        },
+        message: setup.wallet.address.includes('fib') ? 'Fiber invoice created successfully' : 'Payment initiated successfully',
+      })
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * POST /api/cart/checkout
+   * Public guest checkout — no auth required.
+   * Body: { customer_email, items: [{product_id, quantity}], fiat_currency?, payment_method? }
+   */
+  public async guestCheckout({ request, response }: HttpContextContract) {
+    try {
+      const { customer_email, items, fiat_currency, payment_method = 'crypto' } = request.all()
+
+      if (!customer_email) throw new Error('customer_email is required for guest checkout.')
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        throw new Error('Cart items are required for guest checkout.')
+      }
+
+      const shopIds = [...new Set(items.map((item: any) => item.shopId))]
+      if (shopIds.length > 1) {
+        throw new Error('Checkout is limited to one shop at a time.')
+      }
+
+      const shopId = shopIds[0]
+      const shop = await Shop.query().where('uniqueId', shopId).firstOrFail()
+
+      const fiatCurrency = fiat_currency || shop.currency || 'NGN'
+      const currencyRecord = await Currency.query().where('symbol', fiatCurrency.toUpperCase()).first()
+      if (!currencyRecord) throw new Error(`Unsupported fiat currency: ${fiatCurrency}`)
+
+      const fiatAmount = items.reduce((sum: number, item: any) => {
+        return sum + (item.price * item.quantity)
+      }, 0)
+
+      if (fiatAmount <= 0) throw new Error('Cart total must be greater than 0.')
+
+      const referenceId = genRandomUuid()
+      const intent = await PaymentIntent.create({
+        uniqueId: genRandomUuid(),
+        businessId: shop.userId,
+        businessReferenceId: referenceId,
+        fiatCurrencyId: currencyRecord.uniqueId,
+        fiatAmount,
+        status: PaymentIntentStatus.PAYMENT_CREATED,
+        customerId: null,
+        customerEmail: customer_email,
+      })
+
+      if (payment_method === 'paystack') {
+        const PaystackChargeService = (await import('App/Services/PaystackChargeService')).default
+        const charge = await PaystackChargeService.initializeCharge({
+          email: customer_email,
+          amountNaira: fiatAmount,
+          reference: referenceId,
+          metadata: {
+            payment_intent_id: intent.uniqueId,
+            shop_id: shop.uniqueId,
+            items_count: items.length,
+          },
+        })
+
+        return response.ok(formatSuccessMessage('Checkout session created', {
+          payment_method: 'paystack',
+          payment_intent_id: intent.uniqueId,
+          reference_id: referenceId,
+          authorization_url: charge.authorizationUrl,
+          fiat_amount: fiatAmount,
+          fiat_currency: currencyRecord.symbol,
+          shop_id: shop.uniqueId,
+          items_count: items.length,
+        }))
+      }
+
+      const activeCurrencies = await BusinessCurrencyController.getActiveCurrenciesForBusiness(shop.userId)
+      const assets = await Promise.all(
+        activeCurrencies.map(async (currency) => {
+          let network: { name: string; logo: string } | null = null
+          let amount = 0
+
+          if (currency.type === CurrencyType.CRYPTO) {
+            const cryptoNetwork = (currency as any).cryptoNetwork
+            if (cryptoNetwork) network = { name: cryptoNetwork.name, logo: cryptoNetwork.logo }
+            amount = fiatAmount
+          }
+
+          return {
+            currency_id: currency.uniqueId,
+            name: currency.name,
+            symbol: currency.symbol,
+            logo: currency.logo || '',
+            network,
+            amount,
+          }
+        })
+      )
+
+      return response.ok(formatSuccessMessage('Checkout session created', {
+        payment_intent_id: intent.uniqueId,
+        reference_id: referenceId,
+        fiat_amount: fiatAmount,
+        fiat_currency: currencyRecord.symbol,
+        shop_id: shop.uniqueId,
+        items_count: items.length,
+        assets,
+      }))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * POST /api/cart/wallet
+   * Public guest wallet creation — no auth required.
+   * Body: { reference_id, crypto_currency_id }
+   */
+  public async guestCheckoutWallet({ request, response }: HttpContextContract) {
+    try {
+      const { reference_id, crypto_currency_id } = request.only(['reference_id', 'crypto_currency_id'])
+
+      if (!reference_id) throw new Error('reference_id is required')
+      if (!crypto_currency_id) throw new Error('crypto_currency_id is required')
+
+      const intent = await PaymentIntent.query().where('businessReferenceId', reference_id).firstOrFail()
+
+      const businessUser = await User.query().where('uniqueId', intent.businessId).firstOrFail()
+      const userIntId = businessUser.id
+
+      const cryptoCurrency = await Currency.query().where('uniqueId', crypto_currency_id).first()
+      if (!cryptoCurrency || cryptoCurrency.type !== CurrencyType.CRYPTO) {
+        throw new Error('Invalid crypto currency')
+      }
+
+      const cryptoNetwork = await CryptoNetwork.query().where('uniqueId', cryptoCurrency.cryptoNetworkId).first()
+      if (!cryptoNetwork) throw new Error('Crypto network not found')
+
+      const setup = await PaymentSetupService.createPaymentSetup({
+        paymentIntent: intent,
+        userUniqueId: intent.businessId,
+        userIntId,
         cryptoCurrency,
         referenceId: intent.businessReferenceId,
       })
