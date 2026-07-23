@@ -40,4 +40,12 @@ Route.group(() => {
 
   /** DELETE /api/user/shop/ai/memory — Reset all AI memory tiers */
   Route.delete('/ai/memory', 'ShopBuilderController.aiResetMemory')
+
+  // ─── Delivery Settings ───────────────────────────────────────────────────────
+
+  /** GET /api/user/shop/delivery-settings — Get delivery settings for shop */
+  Route.get('/delivery-settings', 'ShopDeliverySettingController.show')
+
+  /** PUT /api/user/shop/delivery-settings — Update delivery settings */
+  Route.put('/delivery-settings', 'ShopDeliverySettingController.update')
 }).prefix('/api/user/shop').middleware('auth:user')

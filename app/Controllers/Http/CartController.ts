@@ -5,6 +5,7 @@ import Cart from 'App/Models/Cart'
 import CartItem from 'App/Models/CartItem'
 import ShopProduct from 'App/Models/ShopProduct'
 import Shop from 'App/Models/Shop'
+import ShopDeliverySetting from 'App/Models/ShopDeliverySetting'
 import PaymentIntent from 'App/Models/PaymentIntent'
 import Currency from 'App/Models/Currency'
 import CryptoNetwork from 'App/Models/CryptoNetwork'
@@ -217,13 +218,24 @@ export default class CartController extends RolesController {
   /**
    * POST /api/user/cart/checkout
    * Create a PaymentIntent from the authenticated user's cart items.
-   * Body: { fiat_currency?, payment_method? }
-   * payment_method: 'crypto' | 'paystack'
+   * Body: {
+   *   fiat_currency?,
+   *   payment_method?,
+   *   delivery_address?: { full_name, phone, address, city, state, country },
+   *   delivery_state?: string,
+   *   promo_code?: string
+   * }
    */
   public async checkout({ auth, request, response }: HttpContextContract) {
     try {
       const userId = this.allowOnlyLoggedInUsers(auth)
-      const { fiat_currency, payment_method = 'crypto' } = request.only(['fiat_currency', 'payment_method'])
+      const {
+        fiat_currency,
+        payment_method = 'crypto',
+        delivery_address,
+        delivery_state,
+        promo_code,
+      } = request.all()
 
       const cart = await Cart.query().where('userId', userId).firstOrFail()
       const items = await CartItem.query()
@@ -248,12 +260,37 @@ export default class CartController extends RolesController {
       const currencyRecord = await Currency.query().where('symbol', fiatCurrency.toUpperCase()).first()
       if (!currencyRecord) throw new Error(`Unsupported fiat currency: ${fiatCurrency}`)
 
-      const fiatAmount = items.reduce((sum, item) => {
+      const itemsTotal = items.reduce((sum, item) => {
         const product = item.product as any
         return sum + product.price * item.quantity
       }, 0)
 
-      if (fiatAmount <= 0) throw new Error('Cart total must be greater than 0.')
+      if (itemsTotal <= 0) throw new Error('Cart total must be greater than 0.')
+
+      // Calculate delivery fee
+      const deliverySettings = await ShopDeliverySetting.query().where('shopId', shop.uniqueId).first()
+      let deliveryFee = 0
+      if (deliverySettings && !deliverySettings.hasFreeDelivery) {
+        if (delivery_state && deliverySettings.deliveryZones && deliverySettings.deliveryZones[delivery_state]) {
+          deliveryFee = Number(deliverySettings.deliveryZones[delivery_state])
+        } else {
+          deliveryFee = Number(deliverySettings.deliveryFee)
+        }
+      }
+
+      // Calculate discount
+      let discountAmount = 0
+      if (deliverySettings) {
+        if (promo_code && deliverySettings.promoCode && promo_code === deliverySettings.promoCode) {
+          discountAmount = Number(deliverySettings.discountAmount)
+        }
+        if (deliverySettings.discountPercentage > 0) {
+          discountAmount += (itemsTotal * Number(deliverySettings.discountPercentage)) / 100
+        }
+      }
+
+      const totalAmount = itemsTotal + deliveryFee - discountAmount
+      const fiatAmount = totalAmount > 0 ? parseFloat(totalAmount.toFixed(2)) : 0
 
       const referenceId = genRandomUuid()
       const customer = await User.query().where('uniqueId', userId).firstOrFail()
@@ -266,6 +303,14 @@ export default class CartController extends RolesController {
         status: PaymentIntentStatus.PAYMENT_CREATED,
         customerId: customer.uniqueId,
         customerEmail: customer.email,
+        metadata: {
+          delivery_address,
+          delivery_state,
+          promo_code,
+          items_total: itemsTotal,
+          delivery_fee: deliveryFee,
+          discount_amount: discountAmount,
+        },
       })
 
       if (payment_method === 'paystack') {
@@ -298,6 +343,11 @@ export default class CartController extends RolesController {
           fiat_currency: currencyRecord.symbol,
           shop_id: shop.uniqueId,
           items_count: items.length,
+          items_total: itemsTotal,
+          delivery_fee: deliveryFee,
+          discount_amount: discountAmount,
+          delivery_address,
+          delivery_state,
         }))
       }
 
@@ -339,6 +389,11 @@ export default class CartController extends RolesController {
         fiat_currency: currencyRecord.symbol,
         shop_id: shop.uniqueId,
         items_count: items.length,
+        items_total: itemsTotal,
+        delivery_fee: deliveryFee,
+        discount_amount: discountAmount,
+        delivery_address,
+        delivery_state,
         assets,
       }))
     } catch (error) {
@@ -400,11 +455,27 @@ export default class CartController extends RolesController {
   /**
    * POST /api/cart/checkout
    * Public guest checkout — no auth required.
-   * Body: { customer_email, items: [{product_id, quantity}], fiat_currency?, payment_method? }
+   * Body: {
+   *   customer_email,
+   *   items: [{product_id, quantity, price, shopId}],
+   *   fiat_currency?,
+   *   payment_method?,
+   *   delivery_address?: { full_name, phone, address, city, state, country },
+   *   delivery_state?: string,
+   *   promo_code?: string
+   * }
    */
   public async guestCheckout({ request, response }: HttpContextContract) {
     try {
-      const { customer_email, items, fiat_currency, payment_method = 'crypto' } = request.all()
+      const {
+        customer_email,
+        items,
+        fiat_currency,
+        payment_method = 'crypto',
+        delivery_address,
+        delivery_state,
+        promo_code,
+      } = request.all()
 
       if (!customer_email) throw new Error('customer_email is required for guest checkout.')
       if (!items || !Array.isArray(items) || items.length === 0) {
@@ -423,11 +494,36 @@ export default class CartController extends RolesController {
       const currencyRecord = await Currency.query().where('symbol', fiatCurrency.toUpperCase()).first()
       if (!currencyRecord) throw new Error(`Unsupported fiat currency: ${fiatCurrency}`)
 
-      const fiatAmount = items.reduce((sum: number, item: any) => {
+      const itemsTotal = items.reduce((sum: number, item: any) => {
         return sum + (item.price * item.quantity)
       }, 0)
 
-      if (fiatAmount <= 0) throw new Error('Cart total must be greater than 0.')
+      if (itemsTotal <= 0) throw new Error('Cart total must be greater than 0.')
+
+      // Calculate delivery fee
+      const deliverySettings = await ShopDeliverySetting.query().where('shopId', shop.uniqueId).first()
+      let deliveryFee = 0
+      if (deliverySettings && !deliverySettings.hasFreeDelivery) {
+        if (delivery_state && deliverySettings.deliveryZones && deliverySettings.deliveryZones[delivery_state]) {
+          deliveryFee = Number(deliverySettings.deliveryZones[delivery_state])
+        } else {
+          deliveryFee = Number(deliverySettings.deliveryFee)
+        }
+      }
+
+      // Calculate discount
+      let discountAmount = 0
+      if (deliverySettings) {
+        if (promo_code && deliverySettings.promoCode && promo_code === deliverySettings.promoCode) {
+          discountAmount = Number(deliverySettings.discountAmount)
+        }
+        if (deliverySettings.discountPercentage > 0) {
+          discountAmount += (itemsTotal * Number(deliverySettings.discountPercentage)) / 100
+        }
+      }
+
+      const totalAmount = itemsTotal + deliveryFee - discountAmount
+      const fiatAmount = totalAmount > 0 ? parseFloat(totalAmount.toFixed(2)) : 0
 
       const referenceId = genRandomUuid()
       const intent = await PaymentIntent.create({
@@ -439,6 +535,14 @@ export default class CartController extends RolesController {
         status: PaymentIntentStatus.PAYMENT_CREATED,
         customerId: null,
         customerEmail: customer_email,
+        metadata: {
+          delivery_address,
+          delivery_state,
+          promo_code,
+          items_total: itemsTotal,
+          delivery_fee: deliveryFee,
+          discount_amount: discountAmount,
+        },
       })
 
       if (payment_method === 'paystack') {
@@ -463,6 +567,11 @@ export default class CartController extends RolesController {
           fiat_currency: currencyRecord.symbol,
           shop_id: shop.uniqueId,
           items_count: items.length,
+          items_total: itemsTotal,
+          delivery_fee: deliveryFee,
+          discount_amount: discountAmount,
+          delivery_address,
+          delivery_state,
         }))
       }
 
@@ -496,6 +605,11 @@ export default class CartController extends RolesController {
         fiat_currency: currencyRecord.symbol,
         shop_id: shop.uniqueId,
         items_count: items.length,
+        items_total: itemsTotal,
+        delivery_fee: deliveryFee,
+        discount_amount: discountAmount,
+        delivery_address,
+        delivery_state,
         assets,
       }))
     } catch (error) {

@@ -42,6 +42,9 @@ export default class PaymentIntent extends BaseModel {
   @column()
   public customerEmail: string | null
 
+  @column()
+  public metadata: Record<string, any> | null
+
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime
 

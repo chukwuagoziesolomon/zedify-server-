@@ -23,4 +23,5 @@ Route.get('/api/available-assets', 'AvailableAssetController.index')
 Route.group(() => {
   Route.post('/cart/checkout', 'CartController.guestCheckout')
   Route.post('/cart/wallet', 'CartController.guestCheckoutWallet')
+  Route.get('/shop/:subdomain/delivery-settings', 'ShopDeliverySettingController.publicShow')
 }).prefix('/api')
