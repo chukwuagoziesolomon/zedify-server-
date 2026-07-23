@@ -4,6 +4,9 @@ import Route from '@ioc:Adonis/Core/Route'
  * Shop Builder Routes
  * All routes require authentication via auth:user middleware.
  */
+
+Route.get('/api/user/shops', 'ShopBuilderController.index').middleware('auth:user')
+
 Route.group(() => {
   // ─── Shop CRUD ───────────────────────────────────────────────────────────────
 
@@ -12,6 +15,9 @@ Route.group(() => {
 
   /** GET /api/user/shops — List all shops for the authenticated user */
   Route.get('/all', 'ShopBuilderController.index')
+
+  /** GET /api/user/shops — Alias for /all (used by frontend) */
+  Route.get('/shops', 'ShopBuilderController.index')
 
   /** POST /api/user/shop — Create a new shop */
   Route.post('/', 'ShopBuilderController.create')
