@@ -185,7 +185,12 @@ class FiberServiceClass {
         status: 'pending',
       }
     } catch (error: any) {
-      Logger.error('[Fiber] Failed to create invoice: %s', error.message)
+      const message = error.message || String(error)
+      if (/EHOSTUNREACH|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN/.test(message)) {
+        Logger.error('[Fiber] Node unreachable (%s): check FIBER_NODE_URL=%s and Render outbound networking', message, this.fiberNodeUrl)
+        throw new Error(`Fiber node unreachable: cannot reach ${this.fiberNodeUrl}. Check FIBER_NODE_URL and outbound networking/Render firewall.`)
+      }
+      Logger.error('[Fiber] Failed to create invoice: %s', message)
       throw error
     }
   }

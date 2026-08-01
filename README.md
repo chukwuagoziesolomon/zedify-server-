@@ -270,17 +270,17 @@ Our production Fiber Network Node is live on CKB testnet, publicly reachable, an
 
 **P2P address (for connecting your node):**
 ```
-/ip4/185.246.189.116/tcp/8228/p2p/QmZp5MpntTz8LYQiboRFLBxNSN1DajbDsTpV8ioKiYJA3u
+/ip4/94.198.190.100/tcp/8228/p2p/QmXuC8TonHKnMZ3bvv8GLH7N8qzPj2Gc3MaXyBWf9tJNZa
 ```
 
 **Public key:**
 ```
-02e2b71c4f74afa94b10db962573bb1b1d892a2f155e21420f711123a4d082748c
+020e9f7e29f7dca5c272d2456cc06bd0c09aae7291092dd8c9156c5d71b397a37c
 ```
 
 **RPC endpoint (for our own API integration — you shouldn't need this directly):**
 ```
-https://185-246-189-116.nip.io
+https://94-198-190-100.nip.io
 ```
 
 ### 2. Connect your node to ours
@@ -288,7 +288,7 @@ https://185-246-189-116.nip.io
 If you're running `fnn-cli` or an equivalent Fiber node:
 
 ```bash
-fnn-cli peer connect_peer --address /ip4/185.246.189.116/tcp/8228/p2p/QmZp5MpntTz8LYQiboRFLBxNSN1DajbDsTpV8ioKiYJA3u
+fnn-cli peer connect_peer --address /ip4/94.198.190.100/tcp/8228/p2p/QmXuC8TonHKnMZ3bvv8GLH7N8qzPj2Gc3MaXyBWf9tJNZa
 ```
 
 ### 3. Get a testnet invoice from our live storefront
@@ -304,7 +304,7 @@ fnn-cli payment send_payment --invoice <the fibt... invoice from checkout>
 **If this returns `no path found`:** our node is connected to the public testnet graph and multiple bootnodes, so a route usually exists — but testnet liquidity can be uneven. If this happens, opening a small direct channel to us guarantees a route:
 
 ```bash
-fnn-cli channel open_channel --pubkey 02e2b71c4f74afa94b10db962573bb1b1d892a2f155e21420f711123a4d082748c --funding-amount 50000000000
+fnn-cli channel open_channel --pubkey 020e9f7e29f7dca5c272d2456cc06bd0c09aae7291092dd8c9156c5d71b397a37c --funding-amount 50000000000
 ```
 (500 CKB in shannons; wait for `ChannelReady` via `channel list_channels` before retrying the payment)
 

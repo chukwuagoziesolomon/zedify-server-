@@ -113,6 +113,9 @@ class CoinGeckoServiceClass {
       return result
     } catch (error) {
       Logger.error('[CoinGecko] Failed to fetch prices: %s', error.message)
+      if (error.response?.status === 401) {
+        Logger.error('[CoinGecko] 401 Unauthorized — remove or verify COINGECKO_API_KEY in env')
+      }
       return {}
     }
   }
