@@ -11,6 +11,6 @@ jobs:
     steps:
       - name: Trigger poll endpoint
         run: |
-          curl -X POST https://zedify-server.onrender.com/api/webhooks/payment/poll \
+          curl -fsS -X POST https://zedify-server.onrender.com/api/webhooks/payment/poll \
             -H "Content-Type: application/json" \
             -d '{}'
