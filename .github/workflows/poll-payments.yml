@@ -1,0 +1,16 @@
+name: Poll Pending Payments
+
+on:
+  schedule:
+    - cron: '* * * * *'
+  workflow_dispatch:
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger poll endpoint
+        run: |
+          curl -X POST https://zedify-server.onrender.com/api/webhooks/payment/poll \
+            -H "Content-Type: application/json" \
+            -d '{}'
