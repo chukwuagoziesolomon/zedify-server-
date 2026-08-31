@@ -8,6 +8,7 @@ import Wallet from 'App/Models/Wallet'
 import WalletService from './WalletService'
 import FiberInvoiceService from './FiberInvoiceService'
 import TransactionService from './TransactionService'
+import UserWallet from 'App/Models/UserWallet'
 import { resolvePaymentFlowStrategy } from 'App/helpers/cryptoCurrencySelection'
 
 interface CreatePaymentSetupParams {
@@ -93,6 +94,12 @@ class PaymentSetupService {
       await paymentIntent.save()
     }
 
+    const existingUserWallet = await UserWallet.query()
+      .where('userId', userIntId)
+      .where('cryptoNetworkId', cryptoCurrency.cryptoNetworkId)
+      .where('status', 'active')
+      .first()
+
     try {
       qrCodeDataUrl = await QRCode.toDataURL(walletAddress, { width: 256, margin: 2 })
     } catch (error) {
@@ -101,7 +108,7 @@ class PaymentSetupService {
 
     const transaction = await TransactionService.createReceiveTransaction({
       userId: userIntId,
-      userWalletId: undefined,
+      userWalletId: existingUserWallet?.uniqueId,
       cryptoNetworkId: cryptoCurrency.cryptoNetworkId,
       currencyId: cryptoCurrency.uniqueId,
       amountCrypto,

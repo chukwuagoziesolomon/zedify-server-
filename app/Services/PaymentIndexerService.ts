@@ -7,6 +7,7 @@ import PaymentIntent from 'App/Models/PaymentIntent'
 import Shop from 'App/Models/Shop'
 import Wallet from 'App/Models/Wallet'
 import Currency from 'App/Models/Currency'
+import Transaction from 'App/Models/Transaction'
 import UserWallet from 'App/Models/UserWallet'
 import User from 'App/Models/User'
 import UserWalletService from './UserWalletService'
@@ -507,7 +508,20 @@ export class PaymentIndexerService {
         await this.unlockCustomShopAccess(paymentIntent)
 
         // Credit business owner's UserWallet with the received amount
-        await this.creditBusinessWallet(paymentIntent)
+        const creditedWallet = await this.creditBusinessWallet(paymentIntent)
+
+        // Link the receive transaction to the credited wallet and mark it completed
+        if (creditedWallet) {
+          await Transaction.query(trx)
+            .where('paymentIntentId', paymentIntent.uniqueId)
+            .where('type', 'receive')
+            .update({
+              userWalletId: creditedWallet.uniqueId,
+              txHash: txHash,
+              status: 'completed',
+              completedAt: DateTime.now(),
+            })
+        }
 
         // Emit webhook to business
         await this.dispatchWebhook(paymentIntent, txHash)
@@ -540,21 +554,28 @@ export class PaymentIndexerService {
     }
   }
 
-  private async creditBusinessWallet(paymentIntent: PaymentIntent): Promise<void> {
+  private async creditBusinessWallet(paymentIntent: PaymentIntent): Promise<UserWallet | null> {
     try {
       if (!paymentIntent.businessId || !paymentIntent.fiatAmount || !paymentIntent.cryptoCurrencyId) {
-        Logger.warn(`[UserWalletService] Cannot credit wallet: missing businessId, fiatAmount, or cryptoCurrencyId for intent ${paymentIntent.uniqueId}`)
-        return
+        Logger.warn(`[PaymentIndexer] Cannot credit wallet: missing businessId, fiatAmount, or cryptoCurrencyId for intent ${paymentIntent.uniqueId}`)
+        return null
       }
 
       const cryptoCurrency = await Currency.query().where('uniqueId', paymentIntent.cryptoCurrencyId).firstOrFail()
       const usdtAmount = Number(paymentIntent.fiatAmount) / cryptoCurrency.ratePerUsd
       const creditedAmount = parseFloat(usdtAmount.toFixed(6))
 
+      const userWallet = await UserWallet.query()
+        .where('userId', Number(paymentIntent.businessId))
+        .where('cryptoNetworkId', cryptoCurrency.cryptoNetworkId)
+        .where('status', 'active')
+        .first()
+
       const creditedWallet = await UserWalletService.creditWallet({
         userId: Number(paymentIntent.businessId),
         amount: creditedAmount,
         cryptoNetworkId: cryptoCurrency.cryptoNetworkId,
+        userWalletId: userWallet?.uniqueId,
         reference: paymentIntent.uniqueId,
         description: `Payment received for ${paymentIntent.businessReferenceId}`,
         metadata: {
@@ -567,10 +588,13 @@ export class PaymentIndexerService {
       })
 
       if (creditedWallet) {
-        Logger.info(`[UserWalletService] Credited ${creditedAmount} ${cryptoCurrency.symbol} to business ${paymentIntent.businessId}`)
+        Logger.info(`[PaymentIndexer] Credited ${creditedAmount} ${cryptoCurrency.symbol} to wallet ${creditedWallet.uniqueId} for business ${paymentIntent.businessId}`)
       }
+
+      return creditedWallet
     } catch (error) {
-      Logger.error(`[UserWalletService] Failed to credit business wallet for intent ${paymentIntent.uniqueId}: ${error}`)
+      Logger.error(`[PaymentIndexer] Failed to credit business wallet for intent ${paymentIntent.uniqueId}: ${error}`)
+      return null
     }
   }
 

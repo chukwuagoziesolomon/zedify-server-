@@ -8,6 +8,7 @@ export interface CreditWalletParams {
   userId: number
   amount: number // Amount in USDT equivalent
   cryptoNetworkId?: string
+  userWalletId?: string // If provided, credit this specific wallet instead of searching
   reference: string // Payment intent ID or transfer ID
   description: string
   metadata?: Record<string, any>
@@ -28,21 +29,27 @@ export class UserWalletService {
    * Creates a BalanceLedger entry for audit trail.
    */
   public async creditWallet(params: CreditWalletParams): Promise<UserWallet | null> {
-    const { userId, amount, cryptoNetworkId, reference, description, metadata } = params
+    const { userId, amount, cryptoNetworkId, userWalletId, reference, description, metadata } = params
 
     if (amount <= 0) {
       Logger.warn(`[UserWalletService] Cannot credit zero or negative amount: ${amount}`)
       return null
     }
 
-    const wallet = await UserWallet.query()
+    let query = UserWallet.query()
       .where('userId', userId)
       .where('status', 'active')
-      .if(cryptoNetworkId, (q) => q.where('cryptoNetworkId', cryptoNetworkId!))
-      .first()
+
+    if (userWalletId) {
+      query = query.where('uniqueId', userWalletId)
+    } else if (cryptoNetworkId) {
+      query = query.where('cryptoNetworkId', cryptoNetworkId)
+    }
+
+    const wallet = await query.first()
 
     if (!wallet) {
-      Logger.warn(`[UserWalletService] No active wallet found for user ${userId} on network ${cryptoNetworkId || 'any'}`)
+      Logger.warn(`[UserWalletService] No active wallet found for user ${userId} with walletId=${userWalletId || 'any'} network=${cryptoNetworkId || 'any'}`)
       return null
     }
 
@@ -71,7 +78,7 @@ export class UserWalletService {
       })
 
       Logger.info(
-        `[UserWalletService] Credited ${amount} USDT to wallet ${lockedWallet.id} for user ${userId}. ` +
+        `[UserWalletService] Credited ${amount} USDT to wallet ${lockedWallet.uniqueId} for user ${userId}. ` +
         `New balance: ${newBalance}`
       )
 
