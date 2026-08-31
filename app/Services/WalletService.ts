@@ -7,6 +7,8 @@ import Database from '@ioc:Adonis/Lucid/Database'
 import WalletSDK from 'contract-wallet-sdk/dist/walletsdk'
 import type { EvmChain } from 'contract-wallet-sdk/dist/walletsdk/types/types'
 import CKBService from './CKBService'
+import SolanaService from './SolanaService'
+import TronService from './TronService'
 import Logger from '@ioc:Adonis/Core/Logger'
 
 import { DateTime } from 'luxon'
@@ -37,6 +39,14 @@ class WalletService {
 
       if (cryptoNetwork.networkType === 'ckb') {
         return await this.createCkbWallet({ userId, cryptoCurrencyId, refId, sessionDurationMinutes, trx })
+      }
+
+      if (cryptoNetwork.networkType === 'solana') {
+        return await this.createSolanaWallet({ userId, cryptoCurrencyId, refId, sessionDurationMinutes, trx })
+      }
+
+      if (cryptoNetwork.networkType === 'tron') {
+        return await this.createTronWallet({ userId, cryptoCurrencyId, refId, sessionDurationMinutes, trx })
       }
 
       if (cryptoNetwork.networkType !== 'evm') {
@@ -192,6 +202,128 @@ class WalletService {
       wallet.userId = userId
       wallet.type = WalletType.CHILD
       wallet.walletAddress = ckbAddress
+      wallet.cryptoNetworkId = cryptoNetwork.uniqueId
+      wallet.refId = refId
+      wallet.expiresAt = expiresAt
+      wallet.reusable = false
+      wallet.status = 'active'
+      await wallet.useTransaction(trx).save()
+      return wallet
+    })
+  }
+
+  private async createSolanaWallet({ userId, cryptoCurrencyId, refId, sessionDurationMinutes = 60 }: {
+    userId: string
+    cryptoCurrencyId: string
+    refId?: string
+    sessionDurationMinutes?: number
+  } & Record<string, any>): Promise<Wallet> {
+    return await Database.transaction(async (trx) => {
+      const cryptoCurrency = await Currency.query({ client: trx })
+        .where('uniqueId', cryptoCurrencyId)
+        .preload('cryptoNetwork')
+        .firstOrFail()
+
+      const expiresAt = DateTime.now().plus({ minutes: sessionDurationMinutes + 60 })
+      const cryptoNetwork = cryptoCurrency.cryptoNetwork
+
+      let activeWallet: Wallet | null = null
+      if (refId) {
+        activeWallet = await Wallet.query({ client: trx })
+          .where('userId', userId)
+          .andWhere('cryptoNetworkId', cryptoNetwork.uniqueId)
+          .andWhere('refId', refId)
+          .andWhere('status', 'active')
+          .andWhere('expiresAt', '>', DateTime.now().toSQL())
+          .first()
+      }
+
+      if (activeWallet && activeWallet.reusable) {
+        activeWallet.reusable = false
+        activeWallet.expiresAt = expiresAt
+        activeWallet.status = 'active'
+        await activeWallet.useTransaction(trx).save()
+        return activeWallet
+      }
+
+      let solanaAddress: string | undefined
+      try {
+        await SolanaService.initialize(cryptoNetwork.rpcUrl)
+        solanaAddress = SolanaService.generateWallet().address
+      } catch (error) {
+        Logger.error('[WalletService] Solana wallet generation failed: %s', error.message)
+        throw new Error(`Failed to generate Solana wallet: ${error.message}`)
+      }
+
+      if (!solanaAddress) {
+        throw new Error('Solana wallet generation returned empty address')
+      }
+
+      const wallet = new Wallet()
+      wallet.userId = userId
+      wallet.type = WalletType.CHILD
+      wallet.walletAddress = solanaAddress
+      wallet.cryptoNetworkId = cryptoNetwork.uniqueId
+      wallet.refId = refId
+      wallet.expiresAt = expiresAt
+      wallet.reusable = false
+      wallet.status = 'active'
+      await wallet.useTransaction(trx).save()
+      return wallet
+    })
+  }
+
+  private async createTronWallet({ userId, cryptoCurrencyId, refId, sessionDurationMinutes = 60 }: {
+    userId: string
+    cryptoCurrencyId: string
+    refId?: string
+    sessionDurationMinutes?: number
+  } & Record<string, any>): Promise<Wallet> {
+    return await Database.transaction(async (trx) => {
+      const cryptoCurrency = await Currency.query({ client: trx })
+        .where('uniqueId', cryptoCurrencyId)
+        .preload('cryptoNetwork')
+        .firstOrFail()
+
+      const expiresAt = DateTime.now().plus({ minutes: sessionDurationMinutes + 60 })
+      const cryptoNetwork = cryptoCurrency.cryptoNetwork
+
+      let activeWallet: Wallet | null = null
+      if (refId) {
+        activeWallet = await Wallet.query({ client: trx })
+          .where('userId', userId)
+          .andWhere('cryptoNetworkId', cryptoNetwork.uniqueId)
+          .andWhere('refId', refId)
+          .andWhere('status', 'active')
+          .andWhere('expiresAt', '>', DateTime.now().toSQL())
+          .first()
+      }
+
+      if (activeWallet && activeWallet.reusable) {
+        activeWallet.reusable = false
+        activeWallet.expiresAt = expiresAt
+        activeWallet.status = 'active'
+        await activeWallet.useTransaction(trx).save()
+        return activeWallet
+      }
+
+      let tronAddress: string | undefined
+      try {
+        await TronService.initialize(cryptoNetwork.rpcUrl)
+        tronAddress = TronService.generateWallet().address
+      } catch (error) {
+        Logger.error('[WalletService] Tron wallet generation failed: %s', error.message)
+        throw new Error(`Failed to generate Tron wallet: ${error.message}`)
+      }
+
+      if (!tronAddress) {
+        throw new Error('Tron wallet generation returned empty address')
+      }
+
+      const wallet = new Wallet()
+      wallet.userId = userId
+      wallet.type = WalletType.CHILD
+      wallet.walletAddress = tronAddress
       wallet.cryptoNetworkId = cryptoNetwork.uniqueId
       wallet.refId = refId
       wallet.expiresAt = expiresAt

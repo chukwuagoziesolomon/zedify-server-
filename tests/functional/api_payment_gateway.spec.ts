@@ -6,7 +6,7 @@ import PaymentLink from 'App/Models/PaymentLink'
 import Currency from 'App/Models/Currency'
 import CryptoNetwork from 'App/Models/CryptoNetwork'
 import BusinessCurrency from 'App/Models/BusinessCurrency'
-import { CurrentEnvironment, CurrencyType, BusinessCurrencyStatus } from 'App/Lib/types'
+import { CurrencyType, BusinessCurrencyStatus, FeeBearer, CurrentEnvironment, PayoutInterval, PaymentLinkStatus } from 'App/Lib/types'
 import Hash from '@ioc:Adonis/Core/Hash'
 
 test.group('API Payment Gateway Integration', (group) => {
@@ -63,9 +63,9 @@ test.group('API Payment Gateway Integration', (group) => {
       livePublicKey: '',
       testWebhookUrl: '',
       liveWebhookUrl: '',
-      feeBearer: 'BUSINESS',
-      currentEnvironment: 'TEST',
-      payoutInterval: 'INSTANT',
+      feeBearer: FeeBearer.BUSINESS,
+      currentEnvironment: CurrentEnvironment.TEST,
+      payoutInterval: PayoutInterval.INSTANT,
     })
 
     await BusinessCurrency.create({
@@ -82,7 +82,7 @@ test.group('API Payment Gateway Integration', (group) => {
       description: 'Integration test payment link',
       fiatCurrencyId: null,
       fiatAmount: 15000,
-      status: 'active',
+      status: PaymentLinkStatus.ACTIVE,
       isSingleUse: false,
       usageCount: 0,
       usageLimit: null,
@@ -281,7 +281,7 @@ test.group('API Payment Gateway Integration', (group) => {
       title: 'Inactive Link',
       fiatCurrencyId: null,
       fiatAmount: 1000,
-      status: 'inactive',
+      status: PaymentLinkStatus.INACTIVE,
       isSingleUse: false,
       usageCount: 0,
       usageLimit: null,

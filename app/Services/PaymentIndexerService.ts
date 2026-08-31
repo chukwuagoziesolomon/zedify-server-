@@ -21,6 +21,8 @@ import FiberService from './FiberService'
 import FiberInvoiceService from './FiberInvoiceService'
 import FiberPaymentSettlementService from './FiberPaymentSettlementService'
 import CKBService from './CKBService'
+import SolanaService from './SolanaService'
+import TronService from './TronService'
 
 interface WebhookPayload {
   txHash: string
@@ -77,6 +79,16 @@ export class PaymentIndexerService {
       if (this.isFiberInvoiceNetwork(network)) {
         Logger.info(`[PaymentIndexer] Webhook received for Fiber invoice network ${network.name}`)
         await this.checkFiberInvoiceStatus(paymentIntent)
+        return
+      }
+
+      if (network.networkType === 'solana') {
+        await this.verifySolanaPayment(paymentIntent, wallet, cryptoCurrency, payload)
+        return
+      }
+
+      if (network.networkType === 'tron') {
+        await this.verifyTronPayment(paymentIntent, wallet, cryptoCurrency, payload)
         return
       }
 
@@ -199,6 +211,16 @@ export class PaymentIndexerService {
         return
       }
 
+      if (network.networkType === 'solana') {
+        await this.checkSolanaPaymentStatus(paymentIntent, wallet, cryptoCurrency)
+        return
+      }
+
+      if (network.networkType === 'tron') {
+        await this.checkTronPaymentStatus(paymentIntent, wallet, cryptoCurrency)
+        return
+      }
+
       if (network.networkType !== 'evm') return
 
       // Check balance — ERC-20 if contractAddress is set, otherwise native
@@ -267,6 +289,152 @@ export class PaymentIndexerService {
     } catch (error) {
       Logger.warn(
         `[PaymentIndexer] CKB payment check failed for intent ${paymentIntent.uniqueId}: ${error}`
+      )
+    }
+  }
+
+  private async verifySolanaPayment(
+    paymentIntent: PaymentIntent,
+    wallet: Wallet,
+    cryptoCurrency: Currency,
+    payload: any
+  ): Promise<void> {
+    try {
+      await SolanaService.initialize(cryptoCurrency.cryptoNetwork.rpcUrl)
+      const expectedAmount = paymentIntent.feeInCrypto ?? 0
+      const { verified, receivedAmount } = await SolanaService.verifyTransaction(
+        payload.txHash,
+        payload.toAddress,
+        expectedAmount,
+        cryptoCurrency.contractAddress || undefined
+      )
+
+      if (!verified) {
+        Logger.warn(
+          `[PaymentIndexer] Solana amount mismatch for intent ${paymentIntent.uniqueId}. ` +
+          `Expected: ${expectedAmount}, Received: ${receivedAmount}`
+        )
+        return
+      }
+
+      paymentIntent.status = PaymentIntentStatus.AWAITING_CONFIRMATION
+      paymentIntent.receivedPaymentAt = DateTime.now()
+      await paymentIntent.save()
+
+      Logger.info(`[PaymentIndexer] Solana payment confirmed for intent ${paymentIntent.uniqueId}`)
+      await this.onPaymentConfirmed(paymentIntent, wallet, payload.txHash)
+    } catch (error) {
+      Logger.error(`[PaymentIndexer] Solana webhook processing failed: ${error}`)
+      throw error
+    }
+  }
+
+  private async verifyTronPayment(
+    paymentIntent: PaymentIntent,
+    wallet: Wallet,
+    cryptoCurrency: Currency,
+    payload: any
+  ): Promise<void> {
+    try {
+      await TronService.initialize(cryptoCurrency.cryptoNetwork.rpcUrl)
+      const expectedAmount = paymentIntent.feeInCrypto ?? 0
+      const { verified, receivedAmount } = await TronService.verifyTransaction(
+        payload.txHash,
+        payload.toAddress,
+        expectedAmount,
+        cryptoCurrency.contractAddress || undefined
+      )
+
+      if (!verified) {
+        Logger.warn(
+          `[PaymentIndexer] Tron amount mismatch for intent ${paymentIntent.uniqueId}. ` +
+          `Expected: ${expectedAmount}, Received: ${receivedAmount}`
+        )
+        return
+      }
+
+      paymentIntent.status = PaymentIntentStatus.AWAITING_CONFIRMATION
+      paymentIntent.receivedPaymentAt = DateTime.now()
+      await paymentIntent.save()
+
+      Logger.info(`[PaymentIndexer] Tron payment confirmed for intent ${paymentIntent.uniqueId}`)
+      await this.onPaymentConfirmed(paymentIntent, wallet, payload.txHash)
+    } catch (error) {
+      Logger.error(`[PaymentIndexer] Tron webhook processing failed: ${error}`)
+      throw error
+    }
+  }
+
+  private async checkSolanaPaymentStatus(
+    paymentIntent: PaymentIntent,
+    wallet: Wallet,
+    cryptoCurrency: Currency
+  ): Promise<void> {
+    try {
+      if (!wallet.walletAddress) {
+        Logger.warn(`[PaymentIndexer] Missing Solana address for intent ${paymentIntent.uniqueId}`)
+        return
+      }
+
+      await SolanaService.initialize(cryptoCurrency.cryptoNetwork.rpcUrl)
+      const expectedAmount = paymentIntent.feeInCrypto ?? 0
+      const balance = cryptoCurrency.contractAddress
+        ? await SolanaService.getTokenBalance(wallet.walletAddress, cryptoCurrency.contractAddress)
+        : await SolanaService.getBalance(wallet.walletAddress)
+
+      const balanceNum = parseFloat(balance.formatted)
+
+      if (balanceNum >= expectedAmount * 0.99) {
+        Logger.info(
+          `[PaymentIndexer] Solana payment found for intent ${paymentIntent.uniqueId}: ${balance.formatted}`
+        )
+
+        paymentIntent.status = PaymentIntentStatus.AWAITING_CONFIRMATION
+        paymentIntent.receivedPaymentAt = DateTime.now()
+        await paymentIntent.save()
+
+        await this.onPaymentConfirmed(paymentIntent, wallet, 'polled')
+      }
+    } catch (error) {
+      Logger.warn(
+        `[PaymentIndexer] Solana payment check failed for intent ${paymentIntent.uniqueId}: ${error}`
+      )
+    }
+  }
+
+  private async checkTronPaymentStatus(
+    paymentIntent: PaymentIntent,
+    wallet: Wallet,
+    cryptoCurrency: Currency
+  ): Promise<void> {
+    try {
+      if (!wallet.walletAddress) {
+        Logger.warn(`[PaymentIndexer] Missing Tron address for intent ${paymentIntent.uniqueId}`)
+        return
+      }
+
+      await TronService.initialize(cryptoCurrency.cryptoNetwork.rpcUrl)
+      const expectedAmount = paymentIntent.feeInCrypto ?? 0
+      const balance = cryptoCurrency.contractAddress
+        ? await TronService.getTrc20Balance(wallet.walletAddress, cryptoCurrency.contractAddress)
+        : await TronService.getBalance(wallet.walletAddress)
+
+      const balanceNum = parseFloat(balance.formatted)
+
+      if (balanceNum >= expectedAmount * 0.99) {
+        Logger.info(
+          `[PaymentIndexer] Tron payment found for intent ${paymentIntent.uniqueId}: ${balance.formatted}`
+        )
+
+        paymentIntent.status = PaymentIntentStatus.AWAITING_CONFIRMATION
+        paymentIntent.receivedPaymentAt = DateTime.now()
+        await paymentIntent.save()
+
+        await this.onPaymentConfirmed(paymentIntent, wallet, 'polled')
+      }
+    } catch (error) {
+      Logger.warn(
+        `[PaymentIndexer] Tron payment check failed for intent ${paymentIntent.uniqueId}: ${error}`
       )
     }
   }

@@ -26,6 +26,8 @@ export default class extends BaseSeeder {
       ethereumNetwork,
       baseSepoliaNetwork,
       ckbTestnetNetwork,
+      solanaNetwork,
+      tronNetwork,
     ] = await Promise.all([
       CryptoNetwork.query().where('name', 'Binance Smart Chain').first(),
       CryptoNetwork.query().where('name', 'Base').first(),
@@ -35,6 +37,8 @@ export default class extends BaseSeeder {
       CryptoNetwork.query().where('name', 'Ethereum').first(),
       CryptoNetwork.query().where('name', 'Base Sepolia Testnet').first(),
       CryptoNetwork.query().where('name', 'Nervos CKB Testnet').first(),
+      CryptoNetwork.query().where('name', 'Solana').first(),
+      CryptoNetwork.query().where('name', 'Tron').first(),
     ])
 
     // -------------------------------------------------------------------------
@@ -245,6 +249,67 @@ export default class extends BaseSeeder {
         ratePerUsd: 0.005,
         contractAddress: null,
       })
+    }
+
+    // -------------------------------------------------------------------------
+    // Solana
+    // -------------------------------------------------------------------------
+    if (solanaNetwork) {
+      await Currency.createMany([
+        {
+          type: CurrencyType.CRYPTO,
+          name: 'Solana',
+          symbol: 'SOL',
+          logo: icon('solana-logo.svg'),
+          cryptoNetworkId: solanaNetwork.uniqueId,
+          ratePerUsd: 150,
+          contractAddress: null,
+        },
+        {
+          type: CurrencyType.CRYPTO,
+          name: 'USD Coin',
+          symbol: 'USDC',
+          logo: icon('usdc-logo.svg'),
+          cryptoNetworkId: solanaNetwork.uniqueId,
+          ratePerUsd: 1,
+          contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        },
+      ])
+    }
+
+    // -------------------------------------------------------------------------
+    // Tron
+    // -------------------------------------------------------------------------
+    if (tronNetwork) {
+      await Currency.createMany([
+        {
+          type: CurrencyType.CRYPTO,
+          name: 'Tron',
+          symbol: 'TRX',
+          logo: icon('tron-logo.svg'),
+          cryptoNetworkId: tronNetwork.uniqueId,
+          ratePerUsd: 0.25,
+          contractAddress: null,
+        },
+        {
+          type: CurrencyType.CRYPTO,
+          name: 'USDT Tether',
+          symbol: 'USDT',
+          logo: icon('usdt-logo.svg'),
+          cryptoNetworkId: tronNetwork.uniqueId,
+          ratePerUsd: 1,
+          contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+        },
+        {
+          type: CurrencyType.CRYPTO,
+          name: 'USD Coin',
+          symbol: 'USDC',
+          logo: icon('usdc-logo.svg'),
+          cryptoNetworkId: tronNetwork.uniqueId,
+          ratePerUsd: 1,
+          contractAddress: 'TEkxiTehnzSmSe2XqrBj4w32Run966rdz8',
+        },
+      ])
     }
 
     console.log('✅ Currency seeder completed')

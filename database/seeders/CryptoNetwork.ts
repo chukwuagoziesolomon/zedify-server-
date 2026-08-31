@@ -156,6 +156,24 @@ export default class extends BaseSeeder {
         networkType: 'ckb',
         chainId: null,
       },
+      {
+        name: 'Solana',
+        logo: 'https://cryptologos.cc/logos/solana-sol-logo.png',
+        rpcUrl: Env.get('SOLANA_RPC', 'https://api.devnet.solana.com'),
+        isTestnet: true,
+        chainKey: 'solana',
+        networkType: 'solana',
+        chainId: null,
+      },
+      {
+        name: 'Tron',
+        logo: 'https://cryptologos.cc/logos/tron-trx-logo.png',
+        rpcUrl: Env.get('TRON_RPC', 'https://api.trongrid.io'),
+        isTestnet: false,
+        chainKey: 'tron',
+        networkType: 'tron',
+        chainId: null,
+      },
     ])
 
     console.log('✅ CryptoNetwork seeder completed')

@@ -1,4 +1,5 @@
 import { ethers } from 'ethers'
+import { Connection, Keypair, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js'
 import Logger from '@ioc:Adonis/Core/Logger'
 import Database from '@ioc:Adonis/Lucid/Database'
 import { DateTime } from 'luxon'
@@ -12,6 +13,7 @@ import SseService from './SseService'
 import ConversionService from './ConversionService'
 import TransactionService from './TransactionService'
 import Env from '@ioc:Adonis/Core/Env'
+import SolanaService from './SolanaService'
 
 // Minimal ERC-20 ABI for sending tokens
 const ERC20_ABI = [
@@ -230,6 +232,10 @@ class WithdrawalServiceClass {
     // Route to appropriate blockchain handler based on network type
     if (network.networkType === 'ckb') {
       return this.processFiberCkbWithdrawal(userId, userWallet, network, currency, payload, fees)
+    } else if (network.networkType === 'solana') {
+      return this.processSolanaWithdrawal(userId, userWallet, network, currency, payload, fees)
+    } else if (network.networkType === 'tron') {
+      return this.processTronWithdrawal(userId, userWallet, network, currency, payload, fees)
     } else {
       return this.processEvmWithdrawal(userId, userWallet, network, currency, payload, fees)
     }
@@ -497,6 +503,225 @@ class WithdrawalServiceClass {
       message: 'Withdrawal processed successfully.',
       transactionId: transaction.uniqueId,
     }
+  }
+
+  // ─── Solana withdrawal ──────────────────────────────────────────────────────
+
+  private async processSolanaWithdrawal(
+    userId: string,
+    userWallet: UserWallet,
+    network: CryptoNetwork,
+    currency: Currency,
+    payload: CryptoWithdrawalPayload,
+    fees: WithdrawalFees
+  ): Promise<{ txHash: string; status: string; message: string; transactionId?: string }> {
+    await SolanaService.initialize(network.rpcUrl)
+    const connection = new Connection(network.rpcUrl, 'confirmed')
+
+    const senderKeypair = Keypair.fromSecretKey(
+      Buffer.from(Env.get('OWNER_SOLANA_PRIVATE_KEY', ''), 'hex')
+    )
+    const recipientPubkey = new PublicKey(payload.recipientAddress)
+
+    let txHash: string
+
+    if (currency.contractAddress) {
+      Logger.warn('[Withdrawal] Solana SPL token withdrawal not yet implemented for %s', currency.symbol)
+      throw new Error(`Solana ${currency.symbol} withdrawals are not yet supported. Use SOL native transfers.`)
+    } else {
+      const amountLamports = Math.floor(fees.amountToReceive * LAMPORTS_PER_SOL)
+      const tx = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: senderKeypair.publicKey,
+          toPubkey: recipientPubkey,
+          lamports: amountLamports,
+        })
+      )
+      const signature = await connection.sendTransaction(tx, [senderKeypair])
+      await connection.confirmTransaction(signature)
+      txHash = signature
+    }
+
+    userWallet.balance = parseFloat((Number(userWallet.balance) - payload.amount).toFixed(6))
+    userWallet.totalWithdrawn = parseFloat((Number(userWallet.totalWithdrawn) + payload.amount).toFixed(6))
+    await userWallet.save()
+
+    const user = await User.query().where('uniqueId', userId).firstOrFail()
+    const transaction = await TransactionService.createWithdrawalTransaction({
+      userId: user.id,
+      userWalletId: userWallet.uniqueId,
+      cryptoNetworkId: network.uniqueId,
+      currencyId: currency.uniqueId,
+      amountCrypto: fees.amountToReceive,
+      amountUsd: payload.amount,
+      platformFeeUsd: fees.transactionFee,
+      recipientAddress: payload.recipientAddress,
+      description: `${currency.symbol} withdrawal to ${payload.recipientAddress}`,
+    })
+
+    await TransactionService.updateTransactionStatus({
+      transactionId: transaction.uniqueId,
+      status: 'completed',
+      txHash,
+    })
+
+    SseService.emit(userId, {
+      event: 'withdrawal.updated',
+      data: {
+        type: 'crypto',
+        network: network.name,
+        status: 'completed',
+        amount: fees.amountToReceive,
+        tx_hash: txHash,
+        recipient: payload.recipientAddress,
+        currency: currency.symbol,
+        transaction_id: transaction.uniqueId,
+      },
+    })
+
+    SseService.emit(userId, {
+      event: 'wallet.balance_updated',
+      data: {
+        wallet_id: userWallet.uniqueId,
+        balance: Number(userWallet.balance),
+      },
+    })
+
+    try {
+      const now = DateTime.now().toFormat('dd MMM yyyy, HH:mm')
+      await this.notifier.sendEmail({
+        to: user.email,
+        subject: 'Withdrawal Successful – Funds Sent',
+        template: 'withdrawal_success',
+        replacements: {
+          businessName: user.businessName || user.email,
+          status: 'Completed',
+          withdrawalType: 'Crypto Withdrawal',
+          amount: payload.amount,
+          fee: fees.transactionFee,
+          amountToReceive: fees.amountToReceive,
+          isCrypto: true,
+          isFiat: false,
+          networkName: network.name,
+          recipientAddress: payload.recipientAddress,
+          txHash,
+          completedAt: now,
+          year: new Date().getFullYear(),
+        },
+      })
+    } catch (emailErr: any) {
+      Logger.warn(`[Withdrawal] Success email failed: ${emailErr.message}`)
+    }
+
+    Logger.info(`[Withdrawal] Solana withdrawal processed: ${fees.amountToReceive} ${currency.symbol} → ${payload.recipientAddress} tx=${txHash}`)
+    return { txHash, status: 'completed', message: 'Withdrawal processed successfully.', transactionId: transaction.uniqueId }
+  }
+
+  // ─── Tron withdrawal ────────────────────────────────────────────────────────
+
+  private async processTronWithdrawal(
+    userId: string,
+    userWallet: UserWallet,
+    network: CryptoNetwork,
+    currency: Currency,
+    payload: CryptoWithdrawalPayload,
+    fees: WithdrawalFees
+  ): Promise<{ txHash: string; status: string; message: string; transactionId?: string }> {
+    const TronWeb = (await import('tronweb')).default as any
+    const tronWeb = new TronWeb({ fullHost: network.rpcUrl })
+    const ownerPrivateKey = Env.get('OWNER_TRON_PRIVATE_KEY', '')
+    const ownerAddress = tronWeb.address.fromPrivateKey(ownerPrivateKey)
+
+    let txHash: string
+
+    if (currency.contractAddress) {
+      const contract = await tronWeb.contract().at(currency.contractAddress)
+      const decimals = await contract.decimals().call()
+      const amount = Math.floor(fees.amountToReceive * Math.pow(10, Number(decimals)))
+      const tx = await contract.transfer(payload.recipientAddress, amount).send({
+        from: ownerAddress,
+        privateKey: ownerPrivateKey,
+      })
+      txHash = tx
+    } else {
+      const amountSun = Math.floor(fees.amountToReceive * 1_000_000)
+      const tx = await tronWeb.trx.sendTransaction(payload.recipientAddress, amountSun, ownerPrivateKey)
+      txHash = tx.txid
+    }
+
+    userWallet.balance = parseFloat((Number(userWallet.balance) - payload.amount).toFixed(6))
+    userWallet.totalWithdrawn = parseFloat((Number(userWallet.totalWithdrawn) + payload.amount).toFixed(6))
+    await userWallet.save()
+
+    const user = await User.query().where('uniqueId', userId).firstOrFail()
+    const transaction = await TransactionService.createWithdrawalTransaction({
+      userId: user.id,
+      userWalletId: userWallet.uniqueId,
+      cryptoNetworkId: network.uniqueId,
+      currencyId: currency.uniqueId,
+      amountCrypto: fees.amountToReceive,
+      amountUsd: payload.amount,
+      platformFeeUsd: fees.transactionFee,
+      recipientAddress: payload.recipientAddress,
+      description: `${currency.symbol} withdrawal to ${payload.recipientAddress}`,
+    })
+
+    await TransactionService.updateTransactionStatus({
+      transactionId: transaction.uniqueId,
+      status: 'completed',
+      txHash,
+    })
+
+    SseService.emit(userId, {
+      event: 'withdrawal.updated',
+      data: {
+        type: 'crypto',
+        network: network.name,
+        status: 'completed',
+        amount: fees.amountToReceive,
+        tx_hash: txHash,
+        recipient: payload.recipientAddress,
+        currency: currency.symbol,
+        transaction_id: transaction.uniqueId,
+      },
+    })
+
+    SseService.emit(userId, {
+      event: 'wallet.balance_updated',
+      data: {
+        wallet_id: userWallet.uniqueId,
+        balance: Number(userWallet.balance),
+      },
+    })
+
+    try {
+      const now = DateTime.now().toFormat('dd MMM yyyy, HH:mm')
+      await this.notifier.sendEmail({
+        to: user.email,
+        subject: 'Withdrawal Successful – Funds Sent',
+        template: 'withdrawal_success',
+        replacements: {
+          businessName: user.businessName || user.email,
+          status: 'Completed',
+          withdrawalType: 'Crypto Withdrawal',
+          amount: payload.amount,
+          fee: fees.transactionFee,
+          amountToReceive: fees.amountToReceive,
+          isCrypto: true,
+          isFiat: false,
+          networkName: network.name,
+          recipientAddress: payload.recipientAddress,
+          txHash,
+          completedAt: now,
+          year: new Date().getFullYear(),
+        },
+      })
+    } catch (emailErr: any) {
+      Logger.warn(`[Withdrawal] Success email failed: ${emailErr.message}`)
+    }
+
+    Logger.info(`[Withdrawal] Tron withdrawal processed: ${fees.amountToReceive} ${currency.symbol} → ${payload.recipientAddress} tx=${txHash}`)
+    return { txHash, status: 'completed', message: 'Withdrawal processed successfully.', transactionId: transaction.uniqueId }
   }
 
   // ─── Fiat bank transfer ─────────────────────────────────────────────────────

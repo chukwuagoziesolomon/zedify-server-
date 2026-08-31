@@ -4,7 +4,7 @@ import { HasMany } from '@ioc:Adonis/Lucid/Orm'
 import Currency from './Currency'
 import { genRandomUuid } from 'App/helpers/utils'
 
-export type NetworkType = 'evm' | 'ckb'
+export type NetworkType = 'evm' | 'ckb' | 'solana' | 'tron'
 
 export default class CryptoNetwork extends BaseModel {
   @column({ isPrimary: true })
