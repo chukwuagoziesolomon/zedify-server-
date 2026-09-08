@@ -2,7 +2,7 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-RUN apk add --no-cache git && corepack enable
+RUN apk add --no-cache git && git config --global url."https://github.com/".insteadOf "ssh://git@github.com/" && corepack enable
 
 COPY package.json yarn.lock ./
 RUN yarn install
@@ -14,7 +14,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-RUN apk add --no-cache git && corepack enable
+RUN apk add --no-cache git && git config --global url."https://github.com/".insteadOf "ssh://git@github.com/" && corepack enable
 
 COPY --from=builder /app/build ./
 
