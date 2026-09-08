@@ -1,12 +1,13 @@
 import { hd, config, helpers, BI, Indexer, RPC } from '@ckb-lumos/lumos'
 import CryptoNetwork from 'App/Models/CryptoNetwork'
 import Logger from '@ioc:Adonis/Core/Logger'
+import Env from '@ioc:Adonis/Core/Env'
 import crypto from 'crypto'
 
 class CKBServiceClass {
-  private rpcUrl: string = 'https://testnet.ckb.dev/rpc'
-  private indexerUrl: string = 'https://testnet.ckb.dev/indexer'
-  private networkConfig: any = config.predefined.AGGRON4
+  private rpcUrl: string = ''
+  private indexerUrl: string = ''
+  private networkConfig: any = config.predefined.LINA
   private initialized: boolean = false
 
     /**
@@ -15,19 +16,36 @@ class CKBServiceClass {
     public async initialize() {
       if (this.initialized) return
 
-      try {
-        const network = await CryptoNetwork.query().where('chainKey', 'ckb').first()
-        if (network) {
-          this.rpcUrl = network.rpcUrl
-          this.indexerUrl = network.rpcUrl.replace('/rpc', '/indexer')
-          this.networkConfig = config.predefined.AGGRON4
-        }
-        this.initialized = true
-        Logger.info('CKBService initialized with RPC: %s (network: testnet)', this.rpcUrl)
+    try {
+      const networkName = Env.get('CKB_NETWORK', 'mainnet')
+      const isTestnet = networkName === 'testnet'
+      const configuredRpc = isTestnet
+        ? Env.get('CKB_TESTNET_RPC', '')
+        : Env.get('CKB_MAINNET_RPC', '')
+
+      if (!configuredRpc) {
+        throw new Error(`CKB_${networkName.toUpperCase()}_RPC is not configured`)
+      }
+
+      this.rpcUrl = configuredRpc
+      this.indexerUrl = configuredRpc.replace(/\/rpc\/?$/, '/indexer')
+      this.networkConfig = isTestnet ? config.predefined.AGGRON4 : config.predefined.LINA
+
+      const network = await CryptoNetwork.query()
+        .where('chainKey', 'ckb')
+        .where('isTestnet', isTestnet)
+        .first()
+      if (network && network.rpcUrl) {
+        this.rpcUrl = network.rpcUrl
+        this.indexerUrl = network.rpcUrl.replace(/\/rpc\/?$/, '/indexer')
+      }
+
+      this.initialized = true
+      Logger.info('CKBService initialized with RPC: %s (network: %s)', this.rpcUrl, networkName)
       } catch (error) {
-        Logger.warn('CKBService: Could not load network from DB, using testnet defaults')
-        this.networkConfig = config.predefined.AGGRON4
-        this.initialized = true
+        this.initialized = false
+        Logger.error('CKBService initialization failed: %s', error.message)
+        throw error
       }
   }
 

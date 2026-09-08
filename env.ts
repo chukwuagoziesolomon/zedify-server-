@@ -71,13 +71,15 @@ export default Env.rules({
 	ASSETCHAIN_TESTNET_RPC: Env.schema.string.optional(),
 	CKB_TESTNET_RPC: Env.schema.string.optional(),
 	CKB_MAINNET_RPC: Env.schema.string.optional(),
+	CKB_NETWORK: Env.schema.enum.optional(['mainnet', 'testnet'] as const),
+	CCC_NETWORK: Env.schema.enum.optional(['mainnet', 'testnet'] as const),
 
 	// -------------------------------------------------------------------------
 	// Fiber Network (CKB payment channels)
 	// -------------------------------------------------------------------------
 	FIBER_NODE_URL: Env.schema.string.optional(),
 	FIBER_BISCUIT_TOKEN: Env.schema.string.optional(),
-	FIBER_NETWORK: Env.schema.string.optional(),
+	FIBER_NETWORK: Env.schema.enum.optional(['mainnet', 'testnet', 'fiber-mainnet', 'fiber-testnet', 'fiber-devnet'] as const),
 
 	CLIENT_URL: Env.schema.string.optional(),
 

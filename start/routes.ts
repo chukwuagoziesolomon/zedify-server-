@@ -14,6 +14,7 @@ import '../routes/admin/crypto_network'
 import '../routes/admin/dashboard'
 
 import '../routes/user/user'
+import '../routes/user/ccc_auth'
 import '../routes/user/account_info'
 import '../routes/user/settings_api_key'
 import '../routes/user/settings_webhook'
