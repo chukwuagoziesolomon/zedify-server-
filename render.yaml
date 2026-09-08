@@ -71,5 +71,11 @@ services:
         sync: false
       - key: FIBER_NETWORK
         value: testnet
+      - key: CKB_NETWORK
+        value: mainnet
+      - key: CCC_NETWORK
+        value: mainnet
+      - key: CKB_MAINNET_RPC
+        value: https://mainnet.ckb.dev/rpc
       - key: CLIENT_URL
         sync: false

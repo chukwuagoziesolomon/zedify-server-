@@ -4,6 +4,7 @@ import Database from '@ioc:Adonis/Lucid/Database'
 import { Signer, Signature } from '@ckb-ccc/core'
 import { DateTime } from 'luxon'
 import crypto from 'crypto'
+import Logger from '@ioc:Adonis/Core/Logger'
 import User from 'App/Models/User'
 import UserIdentity from 'App/Models/UserIdentity'
 import { formatErrorMessage, formatSuccessMessage, genRandomUuid } from 'App/helpers/utils'
@@ -66,6 +67,7 @@ export default class CccAuthController {
         expiresAt: expiresAt.toUTC().toISO(),
       }))
     } catch (error) {
+      this.logAuthError('challenge', error, request.only(['provider', 'network', 'subject']) as CccPayload)
       return response.status(400).json(await formatErrorMessage(error))
     }
   }
@@ -97,6 +99,7 @@ export default class CccAuthController {
         user: this.publicUser(user),
       }))
     } catch (error) {
+      this.logAuthError('verify', error, request.body() as CccPayload)
       return response.status(this.authErrorStatus(error)).json(await formatErrorMessage(error))
     }
   }
@@ -123,6 +126,7 @@ export default class CccAuthController {
         identity: this.identityResponse(challenge, payload),
       }))
     } catch (error) {
+      this.logAuthError('link', error, request.body() as CccPayload)
       return response.status(this.authErrorStatus(error)).json(await formatErrorMessage(error))
     }
   }
@@ -147,6 +151,7 @@ export default class CccAuthController {
 
       return response.ok(await formatSuccessMessage('Identity unlinked', { subject }))
     } catch (error) {
+      this.logAuthError('unlink', error, request.only(['subject']) as CccPayload)
       return response.status(this.authErrorStatus(error)).json(await formatErrorMessage(error))
     }
   }
@@ -243,5 +248,19 @@ export default class CccAuthController {
 
   private authErrorStatus(error: any) {
     return error?.message === 'Authentication required' ? 401 : 400
+  }
+
+  private logAuthError(action: string, error: any, payload: CccPayload) {
+    const message = error instanceof Error ? error.message : String(error)
+    const configuredNetwork = Env.get('CCC_NETWORK', Env.get('CKB_NETWORK', 'mainnet'))
+
+    Logger.warn(
+      '[CccAuth] %s failed: %s (receivedNetwork=%s, configuredNetwork=%s, provider=%s)',
+      action,
+      message,
+      payload?.network || 'missing',
+      configuredNetwork,
+      payload?.provider || 'missing',
+    )
   }
 }
