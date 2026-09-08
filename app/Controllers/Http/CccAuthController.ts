@@ -153,7 +153,10 @@ export default class CccAuthController {
 
   private validateIdentity(payload: CccPayload) {
     if (payload.provider !== SUPPORTED_PROVIDER) throw new Error('Only CCC identities are supported')
-    if (!payload.network || payload.network !== this.configuredNetwork()) throw new Error('Wallet network does not match the configured application network')
+    const configuredNetwork = this.configuredNetwork()
+    if (!payload.network || payload.network !== configuredNetwork) {
+      throw new Error(`Wallet network does not match the configured application network (received: ${payload.network || 'missing'}, expected: ${configuredNetwork})`)
+    }
     if (!payload.subject || payload.subject.length > 4096) throw new Error('CCC canonical identity subject is required')
   }
 
