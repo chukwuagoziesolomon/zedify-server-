@@ -55,3 +55,10 @@ Route.group(() => {
   /** PUT /api/user/shop/delivery-settings — Update delivery settings */
   Route.put('/delivery-settings', 'ShopDeliverySettingController.update')
 }).prefix('/api/user/shop').middleware('auth:user')
+
+Route.group(() => {
+  Route.get('/', 'ShopOrderController.index')
+  Route.get('/analytics', 'ShopOrderController.analytics')
+  Route.get('/:orderId', 'ShopOrderController.show')
+  Route.patch('/:orderId/status', 'ShopOrderController.updateStatus')
+}).prefix('/api/user/shop/orders').middleware('auth:user')

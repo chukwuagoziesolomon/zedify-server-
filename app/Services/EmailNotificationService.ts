@@ -396,6 +396,37 @@ export class EmailNotificationService {
     }
   }
 
+  async sendCustomerOrderConfirmationEmailAddress(
+    customerEmail: string,
+    data: {
+      referenceId: string
+      shopName: string
+      fiatAmount: number
+      fiatCurrency: string
+      confirmedAt: Date
+    }
+  ): Promise<void> {
+    try {
+      await this.notificationService.sendEmail({
+        to: customerEmail,
+        subject: `Order Confirmed — ${data.referenceId}`,
+        template: 'customer_order_confirmed',
+        replacements: {
+          customerName: customerEmail,
+          referenceId: data.referenceId,
+          shopName: data.shopName,
+          fiatAmount: data.fiatAmount.toFixed(2),
+          fiatCurrency: data.fiatCurrency,
+          confirmedAt: data.confirmedAt.toLocaleString(),
+        },
+      })
+
+      Logger.info(`[EmailNotification] Guest customer confirmation email sent to ${customerEmail}`)
+    } catch (error) {
+      Logger.warn(`[EmailNotification] Failed to send guest customer confirmation email: ${error}`)
+    }
+  }
+
   /**
    * Get blockchain explorer URL based on network
    */

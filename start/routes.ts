@@ -35,6 +35,7 @@ import '../routes/user/cart'
 // Webhook routes for payment confirmations
 import '../routes/webhooks'
 import '../routes/webhooks/payout'
+import '../routes/webhooks/paystack'
 
 // Public payment status routes (for payment widgets — no auth required)
 import '../routes/payment_status'

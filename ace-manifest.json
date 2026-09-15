@@ -27,6 +27,62 @@
         }
       ]
     },
+    "payments:reconcile-completed": {
+      "settings": {
+        "loadApp": true,
+        "stayAlive": false
+      },
+      "commandPath": "./commands/ReconcileCompletedPayments",
+      "commandName": "payments:reconcile-completed",
+      "description": "Find completed payments without wallet conversion and optionally settle them",
+      "args": [],
+      "aliases": [],
+      "flags": [
+        {
+          "name": "apply",
+          "propertyName": "apply",
+          "type": "boolean",
+          "description": "Actually apply wallet credits; without this flag the command only reports candidates"
+        },
+        {
+          "name": "include-fiber",
+          "propertyName": "includeFiber",
+          "type": "boolean",
+          "description": "Include historical paid Fiber invoices, which may require manual review for duplicate settlement risk"
+        },
+        {
+          "name": "limit",
+          "propertyName": "limit",
+          "type": "number",
+          "description": "Maximum number of completed payments to inspect"
+        }
+      ]
+    },
+    "repair:wallet-balances": {
+      "settings": {
+        "loadApp": true,
+        "stayAlive": false
+      },
+      "commandPath": "./commands/RepairWalletBalances",
+      "commandName": "repair:wallet-balances",
+      "description": "Recalculate UserWallet balances from BalanceLedger entries",
+      "args": [],
+      "aliases": [],
+      "flags": [
+        {
+          "name": "dry-run",
+          "propertyName": "dryRun",
+          "type": "boolean",
+          "description": "Dry run only; do not write changes"
+        },
+        {
+          "name": "limit",
+          "propertyName": "limit",
+          "type": "number",
+          "description": "Limit wallets to repair"
+        }
+      ]
+    },
     "settle:fiber-payments": {
       "settings": {},
       "commandPath": "./commands/SettleFiberPayments",

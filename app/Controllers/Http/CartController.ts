@@ -304,6 +304,13 @@ export default class CartController extends RolesController {
         customerId: customer.uniqueId,
         customerEmail: customer.email,
         metadata: {
+          shop_id: shop.uniqueId,
+          items: items.map((item) => {
+            const product = item.product as any
+            return { product_id: product.uniqueId, name: product.name, quantity: item.quantity, price: product.price }
+          }),
+          customer_phone: (delivery_address as any)?.phone || customer.phone || null,
+          order_status: 'pending',
           delivery_address,
           delivery_state,
           promo_code,
@@ -536,6 +543,10 @@ export default class CartController extends RolesController {
         customerId: null,
         customerEmail: customer_email,
         metadata: {
+          shop_id: shop.uniqueId,
+          items: items.map((item: any) => ({ product_id: item.product_id, name: item.name, quantity: item.quantity, price: item.price })),
+          customer_phone: (delivery_address as any)?.phone || null,
+          order_status: 'pending',
           delivery_address,
           delivery_state,
           promo_code,

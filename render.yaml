@@ -72,9 +72,11 @@ services:
       - key: FIBER_NETWORK
         value: testnet
       - key: CKB_NETWORK
-        value: mainnet
+        value: testnet
       - key: CCC_NETWORK
-        value: mainnet
+        value: testnet
+      - key: CKB_TESTNET_RPC
+        value: https://testnet.ckb.dev/rpc
       - key: CKB_MAINNET_RPC
         value: https://mainnet.ckb.dev/rpc
       - key: CLIENT_URL

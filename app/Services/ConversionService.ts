@@ -194,6 +194,32 @@ class ConversionServiceClass {
     }
   }
 
+  /** Convert any accepted crypto amount to its USD value using CoinGecko. */
+  async convertCryptoToUsd(amount: number, symbol: string): Promise<number> {
+    if (amount <= 0) {
+      throw new Error('Amount must be greater than 0')
+    }
+
+    const price = await this.getLiveCryptoUsdPrice(symbol)
+    return parseFloat((amount * price).toFixed(6))
+  }
+
+  /** Convert fiat to an accepted crypto amount using the fiat DB USD rate and live crypto price. */
+  async convertFiatToCrypto(fiatAmount: number, fiatCurrencyId: string, cryptoSymbol: string): Promise<number> {
+    if (fiatAmount <= 0) {
+      throw new Error('Amount must be greater than 0')
+    }
+
+    const fiatCurrency = await Currency.query().where('uniqueId', fiatCurrencyId).firstOrFail()
+    const fiatUsdRate = Number(fiatCurrency.ratePerUsd)
+    if (!Number.isFinite(fiatUsdRate) || fiatUsdRate <= 0) {
+      throw new Error(`Invalid USD rate for ${fiatCurrency.symbol}`)
+    }
+
+    const cryptoUsdPrice = await this.getLiveCryptoUsdPrice(cryptoSymbol)
+    return parseFloat(((fiatAmount * fiatUsdRate) / cryptoUsdPrice).toFixed(6))
+  }
+
   /**
    * Convert SUDT token amount to USD
    * SUDT tokens have variable rates like any cryptocurrency

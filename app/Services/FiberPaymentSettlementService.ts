@@ -5,6 +5,7 @@ import FiberInvoice from 'App/Models/FiberInvoice'
 import UserWallet from 'App/Models/UserWallet'
 import User from 'App/Models/User'
 import BusinessFiberSetting from 'App/Models/BusinessFiberSetting'
+import BalanceLedger, { LedgerTransactionType } from 'App/Models/BalanceLedger'
 import SudtService from './SudtService'
 import ConversionService from './ConversionService'
 import EmailNotificationService from './EmailNotificationService'
@@ -51,6 +52,20 @@ class FiberPaymentSettlementServiceClass {
       const paymentIntent = fiberInvoice.paymentIntent
       if (!paymentIntent) {
         throw new Error(`Payment intent not found for invoice: ${fiberInvoiceId}`)
+      }
+
+      const existingSettlement = await BalanceLedger.query(trx)
+        .where('reference', paymentIntent.uniqueId)
+        .where('type', LedgerTransactionType.DEPOSIT)
+        .first()
+      if (existingSettlement) {
+        await trx.commit()
+        return {
+          success: true,
+          fiberInvoiceId,
+          paymentIntentId: paymentIntent.uniqueId,
+          message: 'Fiber payment was already settled',
+        }
       }
 
       // Get business (sender of payment intent)
@@ -113,6 +128,22 @@ class FiberPaymentSettlementServiceClass {
         (Number(businessWallet.totalFiberReceived || 0) + amountToReceive).toFixed(6)
       )
       await businessWallet.useTransaction(trx).save()
+
+      await BalanceLedger.create({
+        userId: business.id,
+        userWalletId: businessWallet.id,
+        type: LedgerTransactionType.DEPOSIT,
+        amount: amountToReceive,
+        balanceAfter: Number(businessWallet.balance),
+        reference: paymentIntent.uniqueId,
+        description: `Fiber payment received for ${paymentIntent.businessReferenceId}`,
+        metadata: JSON.stringify({
+          payment_intent_id: paymentIntent.uniqueId,
+          fiber_invoice_id: fiberInvoice.uniqueId,
+          gross_amount_usd: amountUsdt,
+          platform_fee_usd: platformFee,
+        }),
+      }, { client: trx })
 
       // Update PaymentIntent status to completed
       paymentIntent.status = PaymentIntentStatus.PAYMENT_COMPLETED

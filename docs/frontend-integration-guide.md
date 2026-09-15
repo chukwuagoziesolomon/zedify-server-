@@ -1133,13 +1133,26 @@ Query: `page`, `limit`, `type` (`all` | `crypto` | `fiat`), `status`
 
 ```json
 {
+  "error": false,
+  "data": "Dashboard stats retrieved successfully",
+  "code": 200,
   "result": {
-    "wallet_balance": 1240.50,
-    "total_payouts": 890.00,
-    "total_payments_processed": 15600.00,
-    "payment_count": 42
+    "totalWalletBalance": 1240.50,
+    "totalPayout": 890.00,
+    "totalPaymentProcessed": 15600.00
   }
 }
+```
+
+The frontend must read the values from `response.result`, not `response.data`:
+
+```ts
+const stats = response.result
+setDashboardStats({
+  walletBalance: Number(stats.totalWalletBalance || 0),
+  totalPayout: Number(stats.totalPayout || 0),
+  totalPaymentProcessed: Number(stats.totalPaymentProcessed || 0),
+})
 ```
 
 ---
@@ -1147,14 +1160,50 @@ Query: `page`, `limit`, `type` (`all` | `crypto` | `fiat`), `status`
 ### Payout chart
 **`GET /api/dashboard/payout-chart`** 🔒
 
-Returns time-series data for the payout chart.
+Returns payout totals in `response.result`:
+
+```json
+{
+  "error": false,
+  "result": {
+    "total": 0,
+    "breakdown": [
+      { "label": "Pending payout", "value": 0, "color": "#a8f0a0" },
+      { "label": "Processing payout", "value": 0, "color": "#d4b896" },
+      { "label": "Current pending interval", "value": 0, "color": "#b0a8d8" }
+    ]
+  }
+}
+```
 
 ---
 
 ### Analytical transactions
 **`GET /api/dashboard/analytical-transactions`** 🔒
 
-Returns recent transaction list for the analytics section.
+Returns confirmed transactions grouped by day. The default `period=week` returns
+the current Monday-to-Sunday week. Use `?period=month` for the current calendar
+month.
+
+```json
+{
+  "error": false,
+  "result": {
+    "period": "week",
+    "year": 2026,
+    "total_count": 2,
+    "total_amount": 75000,
+    "data": [
+      { "label": "Mon", "count": 1, "amount": 50000 },
+      { "label": "Tues", "count": 1, "amount": 25000 }
+    ]
+  }
+}
+```
+
+The chart should map `result.data`, using `count` for the transaction count
+and `amount` for the amount. A transaction is included only after its payment
+intent status becomes `payment_completed`.
 
 ---
 

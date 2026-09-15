@@ -252,6 +252,7 @@ export function roundToTwoDecimalPlace(number, decimalPlaces = 2) {
 
 let cachedFeePercentage: number | null = null
 let cachedFeeExpiresAt = 0
+const DEFAULT_PLATFORM_FEE_PERCENTAGE = 5
 
 export async function getPlatformFeePercentage(): Promise<number> {
   const now = Date.now()
@@ -261,7 +262,10 @@ export async function getPlatformFeePercentage(): Promise<number> {
 
   const SystemSetting = (await import('App/Models/SystemSetting')).default
   const setting = await SystemSetting.query().first()
-  cachedFeePercentage = setting ? Number(setting.platformFeePercentage) : 5
+  const configuredFee = setting ? Number(setting.platformFeePercentage) : NaN
+  cachedFeePercentage = Number.isFinite(configuredFee) && configuredFee >= 0 && configuredFee <= 100
+    ? configuredFee
+    : DEFAULT_PLATFORM_FEE_PERCENTAGE
   cachedFeeExpiresAt = now + 60_000
   return cachedFeePercentage
 }

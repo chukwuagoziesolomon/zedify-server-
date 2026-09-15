@@ -465,6 +465,48 @@ export default class ShopBuilderController extends RolesController {
     }
   }
 
+  /**
+   * GET /api/storefront/:subdomain/products/:productId
+   * Public product detail for product pages and image slideshows.
+   */
+  public async product({ params, response }: HttpContextContract) {
+    try {
+      const shop = await Shop.query().where('subdomain', params.subdomain).firstOrFail()
+      const product = await ShopProduct.query()
+        .where('shopId', shop.uniqueId)
+        .where('uniqueId', params.productId)
+        .where('isActive', true)
+        .firstOrFail()
+
+      return response.ok({
+        error: false,
+        data: {
+          shop: {
+            id: shop.uniqueId,
+            business_name: shop.businessName,
+            subdomain: shop.subdomain,
+            currency: shop.currency,
+            logo_url: shop.logoUrl,
+          },
+          product: {
+            id: product.uniqueId,
+            name: product.name,
+            description: product.description,
+            price: product.price,
+            currency: product.currency,
+            category: product.category,
+            images: product.images ?? [],
+            stock: product.stock,
+            track_stock: product.trackStock,
+            variants: product.variants,
+          },
+        },
+      })
+    } catch (error) {
+      return response.notFound(await formatErrorMessage(error))
+    }
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
   public resolveShopCreationPayload(input: Record<string, any>) {

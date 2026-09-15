@@ -9,21 +9,25 @@ import Wallet from 'App/Models/Wallet'
 import Currency from 'App/Models/Currency'
 import Transaction from 'App/Models/Transaction'
 import UserWallet from 'App/Models/UserWallet'
+import BalanceLedger, { LedgerTransactionType } from 'App/Models/BalanceLedger'
 import User from 'App/Models/User'
 import UserWalletService from './UserWalletService'
 import EmailNotificationService from './EmailNotificationService'
+import WhatsAppNotificationService from './WhatsAppNotificationService'
 import EVMService from './EVMService'
 import SettlementService from './SettlementService'
 import SseService from './SseService'
 import WebhookDispatcherService from './WebhookDispatcherService'
-import { PaymentIntentStatus } from 'App/Lib/types'
+import { CurrencyType, PaymentIntentStatus } from 'App/Lib/types'
 import { resolvePaymentFlowStrategy } from 'App/helpers/cryptoCurrencySelection'
 import FiberService from './FiberService'
 import FiberInvoiceService from './FiberInvoiceService'
 import FiberPaymentSettlementService from './FiberPaymentSettlementService'
 import CKBService from './CKBService'
+import ConversionService from './ConversionService'
 import SolanaService from './SolanaService'
 import TronService from './TronService'
+import BusinessWalletService from './BusinessWalletService'
 
 interface WebhookPayload {
   txHash: string
@@ -37,6 +41,98 @@ interface WebhookPayload {
 }
 
 export class PaymentIndexerService {
+  /**
+   * Confirm a shop order paid through Paystack after the signed webhook is verified.
+   * The fiat amount is converted to the owner's active USDT revenue wallet using
+   * the configured USDT rate, matching the existing wallet-credit convention.
+   */
+  async handlePaystackShopPayment(reference: string, paidAmount: number): Promise<void> {
+    const paymentIntent = await PaymentIntent.query()
+      .where('businessReferenceId', reference)
+      .first()
+
+    if (!paymentIntent) {
+      Logger.warn(`[PaymentIndexer] No shop payment intent found for Paystack reference ${reference}`)
+      return
+    }
+
+    if (paymentIntent.status === PaymentIntentStatus.PAYMENT_COMPLETED) {
+      Logger.info(`[PaymentIndexer] Paystack payment already completed: ${paymentIntent.uniqueId}`)
+      return
+    }
+
+    if (Math.abs(Number(paymentIntent.fiatAmount) - paidAmount) > 1) {
+      throw new Error(
+        `Paystack amount mismatch for ${paymentIntent.uniqueId}: expected ${paymentIntent.fiatAmount}, received ${paidAmount}`
+      )
+    }
+
+    const businessUser = await User.query().where('uniqueId', paymentIntent.businessId).firstOrFail()
+    const revenueCurrency = await Currency.query()
+      .where('symbol', 'USDT')
+      .where('type', CurrencyType.CRYPTO)
+      .where('isDeleted', false)
+      .where('isBlocked', false)
+      .first()
+
+    if (!revenueCurrency) throw new Error('USDT revenue currency is not configured')
+
+    const revenueWallet = await UserWallet.query()
+      .where('userId', businessUser.id)
+      .where('currencyId', revenueCurrency.uniqueId)
+      .where('status', 'active')
+      .first()
+
+    if (!revenueWallet) {
+      throw new Error(`No active USDT revenue wallet found for business ${paymentIntent.businessId}`)
+    }
+
+    const convertedAmount = await ConversionService.convertFiatToCrypto(
+      paidAmount,
+      paymentIntent.fiatCurrencyId,
+      revenueCurrency.symbol
+    )
+    const platformFee = await ConversionService.calculatePlatformFee(convertedAmount)
+    const amountToCredit = parseFloat((convertedAmount - platformFee).toFixed(6))
+    const creditedWallet = await UserWalletService.creditWallet({
+      userId: businessUser.id,
+      amount: amountToCredit,
+      cryptoNetworkId: revenueCurrency.cryptoNetworkId,
+      userWalletId: revenueWallet.uniqueId,
+      reference: paymentIntent.uniqueId,
+      description: `Paystack payment received for ${paymentIntent.businessReferenceId}`,
+      metadata: {
+        payment_intent_id: paymentIntent.uniqueId,
+        provider: 'paystack',
+        fiat_amount: paidAmount,
+        fiat_currency_id: paymentIntent.fiatCurrencyId,
+        crypto_currency: revenueCurrency.symbol,
+      },
+    })
+    if (!creditedWallet) {
+      throw new Error(`Unable to credit USDT revenue wallet for ${paymentIntent.businessId}`)
+    }
+
+    paymentIntent.status = PaymentIntentStatus.PAYMENT_COMPLETED
+    paymentIntent.completedAt = DateTime.now()
+    paymentIntent.metadata = {
+      ...(paymentIntent.metadata || {}),
+      payment_provider: 'paystack',
+      converted_currency: revenueCurrency.symbol,
+      converted_amount: amountToCredit,
+      paid_amount: paidAmount,
+    }
+    await paymentIntent.save()
+
+    await this.notifyShopCustomer(paymentIntent)
+    await this.dispatchWebhook(paymentIntent, `paystack:${reference}`).catch(() => {})
+    await this.emitPaymentConfirmedSSE(paymentIntent).catch(() => {})
+
+    Logger.info(
+      `[PaymentIndexer] Paystack shop payment completed: ${paymentIntent.uniqueId}, converted ${convertedAmount} ${revenueCurrency.symbol}`
+    )
+  }
+
   private isFiberInvoiceNetwork(network: any): boolean {
     const networkType = String(network?.networkType || '').toLowerCase()
     const chainKey = String(network?.chainKey || '').toLowerCase()
@@ -561,18 +657,103 @@ export class PaymentIndexerService {
         return null
       }
 
-      const cryptoCurrency = await Currency.query().where('uniqueId', paymentIntent.cryptoCurrencyId).firstOrFail()
-      const usdtAmount = Number(paymentIntent.fiatAmount) / cryptoCurrency.ratePerUsd
-      const creditedAmount = parseFloat(usdtAmount.toFixed(6))
+      const cryptoCurrency = await Currency.query()
+        .where('uniqueId', paymentIntent.cryptoCurrencyId)
+        .preload('cryptoNetwork')
+        .firstOrFail()
+      const business = await User.query()
+        .where('uniqueId', paymentIntent.businessId)
+        .firstOrFail()
+      const receiveTransaction = await Transaction.query()
+        .where('paymentIntentId', paymentIntent.uniqueId)
+        .where('type', 'receive')
+        .first()
+      const receivedCryptoAmount = Number(
+        receiveTransaction?.amountCrypto || paymentIntent.feeInCrypto || 0
+      )
+      const cryptoAmount = receivedCryptoAmount > 0
+        ? receivedCryptoAmount
+        : await ConversionService.convertFiatToCrypto(
+            Number(paymentIntent.fiatAmount),
+            paymentIntent.fiatCurrencyId,
+            cryptoCurrency.symbol
+          )
+      const grossUsdAmount = await ConversionService.convertCryptoToUsd(
+        cryptoAmount,
+        cryptoCurrency.symbol
+      )
+      const platformFee = await ConversionService.calculatePlatformFee(grossUsdAmount)
+      const creditedAmount = parseFloat((grossUsdAmount - platformFee).toFixed(6))
 
-      const userWallet = await UserWallet.query()
-        .where('userId', Number(paymentIntent.businessId))
+      let userWallet = await UserWallet.query()
+        .where('userId', business.id)
         .where('cryptoNetworkId', cryptoCurrency.cryptoNetworkId)
         .where('status', 'active')
         .first()
 
+      if (!userWallet) {
+        const networkType = cryptoCurrency.cryptoNetwork?.networkType
+        try {
+          if (networkType === 'ckb') {
+            userWallet = await BusinessWalletService.provisionCkbWallet(
+              business.id,
+              cryptoCurrency.uniqueId
+            )
+          } else if (networkType === 'solana') {
+            await SolanaService.initialize(cryptoCurrency.cryptoNetwork.rpcUrl)
+            const generated = SolanaService.generateWallet()
+            userWallet = await UserWallet.create({
+              userId: business.id,
+              cryptoNetworkId: cryptoCurrency.cryptoNetworkId,
+              currencyId: cryptoCurrency.uniqueId,
+              walletAddress: generated.address,
+              balance: 0,
+              totalDeposited: 0,
+              totalWithdrawn: 0,
+              status: 'active',
+              custodyStatus: 'custodial',
+            })
+          } else if (networkType === 'tron') {
+            await TronService.initialize(cryptoCurrency.cryptoNetwork.rpcUrl)
+            const generated = TronService.generateWallet()
+            userWallet = await UserWallet.create({
+              userId: business.id,
+              cryptoNetworkId: cryptoCurrency.cryptoNetworkId,
+              currencyId: cryptoCurrency.uniqueId,
+              walletAddress: generated.address,
+              balance: 0,
+              totalDeposited: 0,
+              totalWithdrawn: 0,
+              status: 'active',
+              custodyStatus: 'custodial',
+            })
+          } else if (networkType === 'evm') {
+            const { ethers } = await import('ethers')
+            const generated = ethers.Wallet.createRandom()
+            userWallet = await UserWallet.create({
+              userId: business.id,
+              cryptoNetworkId: cryptoCurrency.cryptoNetworkId,
+              currencyId: cryptoCurrency.uniqueId,
+              walletAddress: generated.address,
+              balance: 0,
+              totalDeposited: 0,
+              totalWithdrawn: 0,
+              status: 'active',
+              custodyStatus: 'custodial',
+            })
+          }
+        } catch (provisionError) {
+          Logger.error(`[PaymentIndexer] Wallet provisioning failed for user ${business.id} on ${networkType}: ${provisionError}`)
+        }
+      }
+
+      if (!userWallet) {
+        Logger.warn(`[PaymentIndexer] No active wallet found for user ${business.id} on network ${cryptoCurrency.cryptoNetworkId} and provisioning failed`)
+        return null
+      }
+
       const creditedWallet = await UserWalletService.creditWallet({
-        userId: Number(paymentIntent.businessId),
+        userId: business.id,
         amount: creditedAmount,
         cryptoNetworkId: cryptoCurrency.cryptoNetworkId,
         userWalletId: userWallet?.uniqueId,
@@ -583,6 +764,9 @@ export class PaymentIndexerService {
           fiat_amount: Number(paymentIntent.fiatAmount),
           fiat_currency_id: paymentIntent.fiatCurrencyId,
           crypto_currency: cryptoCurrency.symbol,
+          received_crypto_amount: cryptoAmount,
+          gross_usd_amount: grossUsdAmount,
+          platform_fee: platformFee,
           tx_hash: null,
         },
       })
@@ -596,6 +780,32 @@ export class PaymentIndexerService {
       Logger.error(`[PaymentIndexer] Failed to credit business wallet for intent ${paymentIntent.uniqueId}: ${error}`)
       return null
     }
+  }
+
+  public async reconcileCompletedPayment(paymentIntent: PaymentIntent): Promise<UserWallet | null> {
+    const existingLedger = await BalanceLedger.query()
+      .where('reference', paymentIntent.uniqueId)
+      .where('type', LedgerTransactionType.DEPOSIT)
+      .first()
+    if (existingLedger) return null
+
+    const creditedWallet = await this.creditBusinessWallet(paymentIntent)
+    if (!creditedWallet) return null
+
+    try {
+      await Transaction.query()
+        .where('paymentIntentId', paymentIntent.uniqueId)
+        .where('type', 'receive')
+        .update({
+          userWalletId: creditedWallet.uniqueId,
+          status: 'completed',
+          completedAt: DateTime.now(),
+        })
+    } catch (error) {
+      Logger.warn(`[PaymentIndexer] Failed to update receive transaction for reconciled intent ${paymentIntent.uniqueId}: ${error}`)
+    }
+
+    return creditedWallet
   }
 
   /** Push SSE events after a payment is confirmed: transaction.confirmed + wallet.balance_updated + order.payment_received */
@@ -732,7 +942,30 @@ export class PaymentIndexerService {
             confirmedAt: paymentIntent.completedAt ? paymentIntent.completedAt.toJSDate() : new Date(),
           }
         )
+      } else if (paymentIntent.customerEmail) {
+        await EmailNotificationService.sendCustomerOrderConfirmationEmailAddress(
+          paymentIntent.customerEmail,
+          {
+            referenceId: paymentIntent.businessReferenceId,
+            shopName: (await User.query().where('uniqueId', paymentIntent.businessId).first())?.businessName || 'Store',
+            fiatAmount: Number(paymentIntent.fiatAmount),
+            fiatCurrency: fiatCurrency.symbol,
+            confirmedAt: paymentIntent.completedAt ? paymentIntent.completedAt.toJSDate() : new Date(),
+          }
+        )
       }
+
+      const metadata = paymentIntent.metadata || {}
+      const shopOwner = await User.query().where('uniqueId', paymentIntent.businessId).first()
+      await WhatsAppNotificationService.sendOrderConfirmation(
+        metadata.customer_phone || metadata.delivery_address?.phone || null,
+        {
+          referenceId: paymentIntent.businessReferenceId,
+          shopName: shopOwner?.businessName || 'Store',
+          amount: Number(paymentIntent.fiatAmount),
+          currency: fiatCurrency.symbol,
+        }
+      )
 
       Logger.info(
         `[PaymentIndexer] Email notifications sent for payment ${paymentIntent.uniqueId}`
@@ -742,6 +975,39 @@ export class PaymentIndexerService {
         `[PaymentIndexer] Failed to send email notifications: ${error}`
       )
       // Don't fail the entire flow if email fails
+    }
+  }
+
+  private async notifyShopCustomer(paymentIntent: PaymentIntent): Promise<void> {
+    try {
+      const metadata = paymentIntent.metadata || {}
+      const shopOwner = await User.query().where('uniqueId', paymentIntent.businessId).first()
+      const fiatCurrency = await Currency.query().where('uniqueId', paymentIntent.fiatCurrencyId).first()
+      const confirmation = {
+        referenceId: paymentIntent.businessReferenceId,
+        shopName: shopOwner?.businessName || 'Store',
+        fiatAmount: Number(paymentIntent.fiatAmount),
+        fiatCurrency: fiatCurrency?.symbol || paymentIntent.fiatCurrencyId,
+        confirmedAt: paymentIntent.completedAt?.toJSDate() || new Date(),
+      }
+
+      if (paymentIntent.customerId) {
+        await EmailNotificationService.sendCustomerOrderConfirmationEmail(paymentIntent.customerId, confirmation)
+      } else if (paymentIntent.customerEmail) {
+        await EmailNotificationService.sendCustomerOrderConfirmationEmailAddress(paymentIntent.customerEmail, confirmation)
+      }
+
+      await WhatsAppNotificationService.sendOrderConfirmation(
+        metadata.customer_phone || metadata.delivery_address?.phone || null,
+        {
+          referenceId: paymentIntent.businessReferenceId,
+          shopName: confirmation.shopName,
+          amount: confirmation.fiatAmount,
+          currency: confirmation.fiatCurrency,
+        }
+      )
+    } catch (error) {
+      Logger.warn(`[PaymentIndexer] Shop customer notification failed: ${error}`)
     }
   }
 
@@ -772,6 +1038,8 @@ export class PaymentIndexerService {
           )
         }
       )
+
+      await this.sendEmailNotifications(paymentIntent, txHash)
 
       await this.unlockCustomShopAccess(paymentIntent).catch(() => {})
 

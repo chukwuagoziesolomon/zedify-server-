@@ -12,6 +12,7 @@ Route.post('/api/pay/:slug/checkout', 'PaymentLinkController.checkout')
 Route.post('/api/pay/:slug/wallet', 'PaymentLinkController.checkoutWallet')
 
 Route.get('/api/storefront/:subdomain', 'ShopBuilderController.storefront')
+Route.get('/api/storefront/:subdomain/products/:productId', 'ShopBuilderController.product')
 
 Route.get('/api/assets/available', 'AvailableAssetController.index')
 

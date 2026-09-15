@@ -25,6 +25,7 @@ export default class extends BaseSeeder {
       arbitrumNetwork,
       ethereumNetwork,
       baseSepoliaNetwork,
+      ckbMainnetNetwork,
       ckbTestnetNetwork,
       solanaNetwork,
       tronNetwork,
@@ -36,6 +37,7 @@ export default class extends BaseSeeder {
       CryptoNetwork.query().where('name', 'Arbitrum One').first(),
       CryptoNetwork.query().where('name', 'Ethereum').first(),
       CryptoNetwork.query().where('name', 'Base Sepolia Testnet').first(),
+      CryptoNetwork.query().where('name', 'Nervos CKB Mainnet').first(),
       CryptoNetwork.query().where('name', 'Nervos CKB Testnet').first(),
       CryptoNetwork.query().where('name', 'Solana').first(),
       CryptoNetwork.query().where('name', 'Tron').first(),
@@ -237,8 +239,20 @@ export default class extends BaseSeeder {
     }
 
     // -------------------------------------------------------------------------
-    // Testnet — Nervos CKB (non-EVM native token)
+    // Nervos CKB mainnet + testnet (non-EVM native token)
     // -------------------------------------------------------------------------
+    if (ckbMainnetNetwork) {
+      await Currency.create({
+        type: CurrencyType.CRYPTO,
+        name: 'Nervos CKB',
+        symbol: 'CKB',
+        logo: icon('ckb-logo.svg'),
+        cryptoNetworkId: ckbMainnetNetwork.uniqueId,
+        ratePerUsd: 0.005,
+        contractAddress: null,
+      })
+    }
+
     if (ckbTestnetNetwork) {
       await Currency.create({
         type: CurrencyType.CRYPTO,

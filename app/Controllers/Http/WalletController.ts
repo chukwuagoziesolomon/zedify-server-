@@ -4,8 +4,40 @@ import RolesController from './RolesController'
 import User from 'App/Models/User'
 import UserWallet from 'App/Models/UserWallet'
 import CryptoNetwork from 'App/Models/CryptoNetwork'
+import BusinessWalletService from 'App/Services/BusinessWalletService'
 
 export default class WalletController extends RolesController {
+  /**
+   * POST /user/wallet/provision
+   * Creates or returns the authenticated business's custodial CKB wallet.
+   */
+  public async provision({ auth, request, response }: HttpContextContract) {
+    try {
+      const uniqueId = this.allowOnlyLoggedInUsers(auth)
+      const user = await User.query().where('uniqueId', uniqueId).firstOrFail()
+      const { currency_id } = request.only(['currency_id'])
+
+      if (!currency_id) throw new Error('currency_id is required')
+
+      const wallet = await BusinessWalletService.provisionCkbWallet(user.id, currency_id)
+      await wallet.load('cryptoNetwork')
+      await wallet.load('currency')
+
+      return response.ok(formatSuccessMessage('Business wallet provisioned', {
+        wallet_id: wallet.uniqueId,
+        wallet_address: wallet.walletAddress,
+        network: wallet.cryptoNetwork?.name,
+        network_unique_id: wallet.cryptoNetwork?.uniqueId,
+        currency: wallet.currency?.symbol,
+        currency_unique_id: wallet.currency?.uniqueId,
+        custody_status: wallet.custodyStatus,
+        status: wallet.status,
+      }))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
   /**
    * GET /user/wallet/balance
    * Returns the authenticated user's wallet balance(s) for all networks/currencies.

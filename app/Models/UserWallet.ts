@@ -33,6 +33,15 @@ export default class UserWallet extends BaseModel {
   @column()
   public walletAddress: string // Immutable wallet address for receiving USDT
 
+  @column({ serializeAs: null })
+  public encryptedPrivateKey: string | null
+
+  @column({ serializeAs: null })
+  public keyVersion: string | null
+
+  @column()
+  public custodyStatus: 'custodial' | 'external' = 'custodial'
+
   @column()
   public balance: number // Current USDT balance (e.g., 1000.50)
 
@@ -58,9 +67,15 @@ export default class UserWallet extends BaseModel {
   @belongsTo(() => User)
   public user: BelongsTo<typeof User>
 
-  @belongsTo(() => CryptoNetwork)
+  @belongsTo(() => CryptoNetwork, {
+    foreignKey: 'cryptoNetworkId',
+    localKey: 'uniqueId',
+  })
   public cryptoNetwork: BelongsTo<typeof CryptoNetwork>
 
-  @belongsTo(() => Currency)
+  @belongsTo(() => Currency, {
+    foreignKey: 'currencyId',
+    localKey: 'uniqueId',
+  })
   public currency: BelongsTo<typeof Currency>
 }

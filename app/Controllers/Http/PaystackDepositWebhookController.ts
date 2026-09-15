@@ -3,6 +3,7 @@ import Logger from '@ioc:Adonis/Core/Logger'
 import FiatDeposit from 'App/Models/FiatDeposit'
 import PaystackChargeService from 'App/Services/PaystackChargeService'
 import StablecoinConversionService from 'App/Services/StablecoinConversionService'
+import PaymentIndexerService from 'App/Services/PaymentIndexerService'
 
 /**
  * PaystackDepositWebhookController
@@ -40,19 +41,20 @@ export default class PaystackDepositWebhookController {
     }
 
     try {
+      const paidNaira = (data.amount ?? 0) / 100
       const deposit = await FiatDeposit.query()
         .where('providerReference', data.reference)
         .first()
 
       if (!deposit) {
-        Logger.warn(
-          `[PaystackDepositWebhook] No deposit found for reference ${data.reference}`
+        await PaymentIndexerService.handlePaystackShopPayment(
+          data.reference,
+          paidNaira
         )
         return
       }
 
       // Belt-and-braces: confirm amount matches what we recorded
-      const paidNaira = (data.amount ?? 0) / 100
       if (Math.abs(paidNaira - Number(deposit.nairaAmount)) > 1) {
         Logger.warn(
           `[PaystackDepositWebhook] Amount mismatch for deposit ${deposit.uniqueId}. ` +

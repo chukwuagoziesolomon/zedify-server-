@@ -1,6 +1,6 @@
 import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
 import SystemSetting from 'App/Models/SystemSetting'
-import { formatErrorMessage, formatSuccessMessage } from 'App/helpers/utils'
+import { clearPlatformFeeCache, formatErrorMessage, formatSuccessMessage } from 'App/helpers/utils'
 
 export default class SystemSettingsController {
   // GET /api/admin/system-settings
@@ -48,10 +48,15 @@ export default class SystemSettingsController {
         setting.durationPerTransaction = Number(body.duration_per_transaction)
       }
       if (body.platform_fee_percentage !== undefined) {
-        setting.platformFeePercentage = Number(body.platform_fee_percentage)
+        const platformFeePercentage = Number(body.platform_fee_percentage)
+        if (!Number.isFinite(platformFeePercentage) || platformFeePercentage < 0 || platformFeePercentage > 100) {
+          throw new Error('platform_fee_percentage must be a number between 0 and 100')
+        }
+        setting.platformFeePercentage = platformFeePercentage
       }
 
       await setting.save()
+      clearPlatformFeeCache()
 
       return response.ok(formatSuccessMessage('System settings updated', {
         duration_per_transaction: setting.durationPerTransaction,

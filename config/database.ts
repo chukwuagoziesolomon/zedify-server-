@@ -43,6 +43,16 @@ const databaseConfig: DatabaseConfig = {
         database: Env.get('PG_DB_NAME'),
         ssl: Env.get('PG_SSL', 'false') === 'true' ? { rejectUnauthorized: false } : false,
       },
+      pool: {
+        // Neon can close idle connections or temporarily fail DNS resolution.
+        // Do not keep a permanently warm connection that can become stale.
+        min: 0,
+        max: 10,
+        acquireTimeoutMillis: 15000,
+        createTimeoutMillis: 10000,
+        idleTimeoutMillis: 10000,
+        reapIntervalMillis: 1000,
+      },
       migrations: {
         naturalSort: true,
       },

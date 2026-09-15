@@ -9,6 +9,10 @@ import { DateTime } from 'luxon'
 import Database from '@ioc:Adonis/Lucid/Database'
 
 export default class DashboardStatsController {
+  private getBusinessIdentifiers(user: { uniqueId: string; id: number }) {
+    return Array.from(new Set([user.uniqueId, String(user.id)]))
+  }
+
   public async stats({ auth, response }: HttpContextContract) {
     try {
       const user = auth.use('user').user
@@ -16,7 +20,9 @@ export default class DashboardStatsController {
         throw new Error('Authentication error!')
       }
 
-      const [walletBalanceResult, payoutResult, paymentProcessedResult] = await Promise.all([
+      const businessIdentifiers = this.getBusinessIdentifiers(user)
+
+      const [walletBalanceResult, payoutResult, paymentProcessedResult, paymentCountResult] = await Promise.all([
         UserWallet.query()
           .where('userId', user.id)
           .where('status', 'active')
@@ -30,21 +36,29 @@ export default class DashboardStatsController {
           .first(),
 
         PaymentIntent.query()
-          .where('businessId', user.uniqueId)
+          .whereIn('business_id', businessIdentifiers)
           .where('status', PaymentIntentStatus.PAYMENT_COMPLETED)
           .sum('fiat_amount as total')
           .first(),
+
+          PaymentIntent.query()
+            .whereIn('business_id', businessIdentifiers)
+            .where('status', PaymentIntentStatus.PAYMENT_COMPLETED)
+            .count('* as total')
+            .first(),
       ])
 
       const totalWalletBalance = Number(walletBalanceResult?.$extras?.total || 0)
       const totalPayout = Number(payoutResult?.$extras?.total || 0)
       const totalPaymentProcessed = Number(paymentProcessedResult?.$extras?.total || 0)
+          const paymentCount = Number(paymentCountResult?.$extras?.total || 0)
 
       return response.status(200).json(
         await formatSuccessMessage('Dashboard stats retrieved successfully', {
           totalWalletBalance,
           totalPayout,
           totalPaymentProcessed,
+          paymentCount,
         })
       )
     } catch (error) {
@@ -129,6 +143,8 @@ export default class DashboardStatsController {
       const user = auth.use('user').user
       if (!user) throw new Error('Authentication error!')
 
+      const businessIdentifiers = this.getBusinessIdentifiers(user)
+
       const period = (request.input('period', 'week') as string).toLowerCase()
       const now = DateTime.now()
       const year = Number(request.input('year', now.year))
@@ -164,20 +180,23 @@ export default class DashboardStatsController {
         ]
       }
 
-      // Aggregate payment_intent_tb rows for this user in the window
-      // Group by ISO day-of-week (1=Mon…7=Sun) for week, or day-of-month for month
+      // Aggregate confirmed payments by completion time. An intent may be created
+      // before the customer actually completes payment.
       const extractFn = period === 'month' ? 'day' : 'isodow'
+      const timestampColumn = 'completed_at'
 
       const rows = await Database.from('payment_intent_tb')
-        .where('business_id', user.uniqueId)
-        .whereBetween('created_at', [start.toISO()!, end.toISO()!])
+        .whereIn('business_id', businessIdentifiers)
+        .where('status', PaymentIntentStatus.PAYMENT_COMPLETED)
+        .whereNotNull(timestampColumn)
+        .whereBetween(timestampColumn, [start.toISO()!, end.toISO()!])
         .select(
-          Database.raw(`EXTRACT(${extractFn} FROM created_at)::int AS period_key`),
+          Database.raw(`EXTRACT(${extractFn} FROM ${timestampColumn})::int AS period_key`),
           Database.raw('COUNT(*) AS transaction_count'),
           Database.raw('COALESCE(SUM(fiat_amount), 0) AS total_amount')
         )
-        .groupByRaw(`EXTRACT(${extractFn} FROM created_at)::int`)
-        .orderByRaw(`EXTRACT(${extractFn} FROM created_at)::int`)
+        .groupByRaw(`EXTRACT(${extractFn} FROM ${timestampColumn})::int`)
+        .orderByRaw(`EXTRACT(${extractFn} FROM ${timestampColumn})::int`)
 
       // Build a lookup map from the DB results
       const map: Record<string, { count: number; amount: number }> = {}

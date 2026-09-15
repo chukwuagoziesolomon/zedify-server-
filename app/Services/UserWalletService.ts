@@ -62,9 +62,22 @@ export class UserWalletService {
       const previousBalance = Number(lockedWallet.balance)
       const newBalance = parseFloat((previousBalance + amount).toFixed(6))
 
-      lockedWallet.balance = newBalance
-      lockedWallet.totalDeposited = parseFloat((Number(lockedWallet.totalDeposited) + amount).toFixed(6))
-      await lockedWallet.useTransaction(trx).save()
+      await UserWallet.query({ client: trx })
+        .where('id', wallet.id)
+        .update({
+          balance: newBalance,
+          totalDeposited: parseFloat((Number(lockedWallet.totalDeposited) + amount).toFixed(6)),
+        })
+
+      const reloadedWallet = await UserWallet.query({ client: trx })
+        .where('id', wallet.id)
+        .firstOrFail()
+
+      Logger.info(`[UserWalletService] After in-txn update for wallet ${lockedWallet.uniqueId}: ormBalance=${newBalance} reloaded=${reloadedWallet.balance}`)
+
+      if (Number(reloadedWallet.balance) !== newBalance) {
+        throw new Error(`[UserWalletService] Balance verification failed after credit: expected ${newBalance}, got ${reloadedWallet.balance}`)
+      }
 
       await BalanceLedger.create({
         userId: lockedWallet.userId,
@@ -75,14 +88,14 @@ export class UserWalletService {
         reference,
         description,
         metadata: metadata ? JSON.stringify(metadata) : undefined,
-      })
+      }, { client: trx })
 
       Logger.info(
         `[UserWalletService] Credited ${amount} USDT to wallet ${lockedWallet.uniqueId} for user ${userId}. ` +
         `New balance: ${newBalance}`
       )
 
-      return lockedWallet
+      return reloadedWallet
     })
   }
 
@@ -115,9 +128,20 @@ export class UserWalletService {
 
       const newBalance = parseFloat((previousBalance - amount).toFixed(6))
 
-      wallet.balance = newBalance
-      wallet.totalWithdrawn = parseFloat((Number(wallet.totalWithdrawn) + amount).toFixed(6))
-      await wallet.useTransaction(trx).save()
+      await UserWallet.query({ client: trx })
+        .where('id', userWalletId)
+        .update({
+          balance: newBalance,
+          totalWithdrawn: parseFloat((Number(wallet.totalWithdrawn) + amount).toFixed(6)),
+        })
+
+      const reloadedWallet = await UserWallet.query({ client: trx })
+        .where('id', userWalletId)
+        .firstOrFail()
+
+      if (Number(reloadedWallet.balance) !== newBalance) {
+        throw new Error(`[UserWalletService] Balance verification failed after debit: expected ${newBalance}, got ${reloadedWallet.balance}`)
+      }
 
       await BalanceLedger.create({
         userId: wallet.userId,
@@ -128,14 +152,14 @@ export class UserWalletService {
         reference,
         description,
         metadata: metadata ? JSON.stringify(metadata) : undefined,
-      })
+      }, { client: trx })
 
       Logger.info(
         `[UserWalletService] Debited ${amount} USDT from wallet ${wallet.id}. ` +
         `New balance: ${newBalance}`
       )
 
-      return wallet
+      return reloadedWallet
     })
   }
 
