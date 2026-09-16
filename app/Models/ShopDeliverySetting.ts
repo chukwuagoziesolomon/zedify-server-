@@ -22,6 +22,12 @@ export default class ShopDeliverySetting extends BaseModel {
   public deliveryFee: number = 0
 
   @column()
+  public deliveryFeeCurrency: string | null = null
+
+  @column()
+  public deliveryFeeUsd: number | null = null
+
+  @column()
   public deliveryZones: Record<string, number> | null = null
 
   @column()

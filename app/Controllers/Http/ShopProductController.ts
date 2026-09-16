@@ -38,7 +38,10 @@ export default class ShopProductController extends RolesController {
   /**
    * POST /user/shop/products
    * Create a new product.
-   * Body (JSON): { name, price, description?, category?, stock?, track_stock?, variants?, product_type? }
+   * Body (JSON or multipart): { name, price, description?, category?, stock?, track_stock?, variants?, product_type?, images? }
+   * images can be:
+   *   - JSON array of {url, publicId} objects
+   *   - multipart files under field name "images"
    */
   public async create({ auth, request, response }: HttpContextContract) {
     try {
@@ -75,6 +78,38 @@ export default class ShopProductController extends RolesController {
         throw new Error('This shop template does not support product variants.')
       }
 
+      let images: { url: string; publicId: string }[] | null = null
+
+      const rawImages = request.input('images')
+      if (Array.isArray(rawImages) && rawImages.length > 0) {
+        images = rawImages
+          .filter((img: any) => img && typeof img.url === 'string')
+          .map((img: any) => ({
+            url: String(img.url),
+            publicId: typeof img.publicId === 'string' ? img.publicId : genRandomUuid(),
+          }))
+      }
+
+      const rawFiles = request.files('images')
+      const files = Array.isArray(rawFiles) ? rawFiles : rawFiles ? [rawFiles] : []
+      if (files.length > 0) {
+        const fileService = new FileUploadService()
+        const maxImages = features.max_images_per_product || SHOP_PRODUCT_FEATURES.MAX_IMAGES_PER_PRODUCT
+        const totalImages = (images?.length || 0) + files.length
+        if (totalImages > maxImages) {
+          throw new Error(`Maximum ${maxImages} images allowed per product.`)
+        }
+        if (files.length > 5) throw new Error('Maximum 5 images per upload batch.')
+
+        const uploaded: { url: string; publicId: string }[] = []
+        for (const file of files) {
+          if (!file.isValid) throw new Error(file.errors?.[0]?.message ?? 'Invalid file.')
+          const result = await fileService.uploadProfileImage(file, `shop-product-${genRandomUuid()}`)
+          uploaded.push({ url: result.url, publicId: result.path })
+        }
+        images = [...(images || []), ...uploaded]
+      }
+
       const product = await ShopProduct.create({
         uniqueId: genRandomUuid(),
         shopId: shop.uniqueId,
@@ -86,6 +121,7 @@ export default class ShopProductController extends RolesController {
         stock: parseInt(stock) || 0,
         trackStock: track_stock === true || track_stock === 'true',
         variants: variants || null,
+        images,
         isActive: true,
       })
 
@@ -98,6 +134,10 @@ export default class ShopProductController extends RolesController {
   /**
    * PUT /user/shop/products/:productId
    * Update a product.
+   * Body (JSON or multipart): { name?, price?, description?, category?, stock?, track_stock?, variants?, is_active?, images? }
+   * images can be:
+   *   - JSON array of {url, publicId} objects (replaces all images)
+   *   - multipart files under field name "images" (appends to existing images)
    */
   public async update({ auth, request, response, params }: HttpContextContract) {
     try {
@@ -119,6 +159,37 @@ export default class ShopProductController extends RolesController {
       if (track_stock !== undefined) product.trackStock = track_stock === true || track_stock === 'true'
       if (variants !== undefined) product.variants = variants || null
       if (is_active !== undefined) product.isActive = is_active === true || is_active === 'true'
+
+      const rawImages = request.input('images')
+      if (Array.isArray(rawImages) && rawImages.length > 0) {
+        product.images = rawImages
+          .filter((img: any) => img && typeof img.url === 'string')
+          .map((img: any) => ({
+            url: String(img.url),
+            publicId: typeof img.publicId === 'string' ? img.publicId : genRandomUuid(),
+          }))
+      }
+
+      const rawFiles = request.files('images')
+      const files = Array.isArray(rawFiles) ? rawFiles : rawFiles ? [rawFiles] : []
+      if (files.length > 0) {
+        const fileService = new FileUploadService()
+        const features = shop.features || getDefaultFeatures(shop.template || 'yanga-default')
+        const maxImages = features.max_images_per_product || SHOP_PRODUCT_FEATURES.MAX_IMAGES_PER_PRODUCT
+        const totalImages = (product.images?.length || 0) + files.length
+        if (totalImages > maxImages) {
+          throw new Error(`Maximum ${maxImages} images allowed per product.`)
+        }
+        if (files.length > 5) throw new Error('Maximum 5 images per upload batch.')
+
+        const uploaded: { url: string; publicId: string }[] = []
+        for (const file of files) {
+          if (!file.isValid) throw new Error(file.errors?.[0]?.message ?? 'Invalid file.')
+          const result = await fileService.uploadProfileImage(file, `shop-product-${product.uniqueId}`)
+          uploaded.push({ url: result.url, publicId: result.path })
+        }
+        product.images = [...(product.images ?? []), ...uploaded]
+      }
 
       await product.save()
 

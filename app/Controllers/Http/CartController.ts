@@ -15,10 +15,91 @@ import { genRandomUuid } from 'App/helpers/utils'
 import { PaymentIntentStatus, CurrencyType } from 'App/Lib/types'
 import SseService from 'App/Services/SseService'
 import PaymentSetupService from 'App/Services/PaymentSetupService'
+import CurrencyController from './CurrencyController'
 
 export default class CartController extends RolesController {
   private async emitCartEvent(userId: string, event: string, data: any) {
     SseService.emit(userId, { event: event as any, data })
+  }
+
+  private async getOrCreateGuestCart(guestToken: string): Promise<Cart> {
+    let cart = await Cart.query().where('guestToken', guestToken).first()
+    if (!cart) {
+      cart = await Cart.create({
+        uniqueId: genRandomUuid(),
+        userId: null,
+        guestToken,
+      })
+    }
+    return cart
+  }
+
+  private async getOrCreateUserCart(userId: string): Promise<Cart> {
+    let cart = await Cart.query().where('userId', userId).first()
+    if (!cart) {
+      cart = await Cart.create({
+        uniqueId: genRandomUuid(),
+        userId,
+        guestToken: null,
+      })
+    }
+    return cart
+  }
+
+  private async ensureShopConsistency(cart: Cart, productShopId: string): Promise<void> {
+    const existingItems = await CartItem.query()
+      .where('cartId', cart.uniqueId)
+      .preload('product', (productQuery) => {
+        productQuery.select('uniqueId', 'shopId')
+      })
+
+    const shopIds = new Set<string>()
+    for (const item of existingItems) {
+      const product = item.product as any
+      if (product?.shopId && product.shopId !== productShopId) {
+        await CartItem.query().where('cartId', cart.uniqueId).delete()
+        cart.shopId = productShopId
+        await cart.save()
+        return
+      }
+      if (product?.shopId) {
+        shopIds.add(product.shopId)
+      }
+    }
+
+    if (shopIds.size === 0 || (shopIds.size === 1 && shopIds.has(productShopId))) {
+      cart.shopId = productShopId
+      await cart.save()
+    }
+  }
+
+  private async loadCartItems(cart: Cart) {
+    const items = await CartItem.query()
+      .where('cartId', cart.uniqueId)
+      .preload('product', (productQuery) => {
+        productQuery.select('uniqueId', 'shopId', 'name', 'price', 'currency', 'images', 'stock', 'isActive')
+      })
+
+    return items.map((item) => {
+      const product = item.product as any
+      if (!product) return null
+
+      const shop = product.$parent?.shop as any
+      const shopData = shop || { uniqueId: product.shopId }
+
+      return {
+        id: item.uniqueId,
+        product_id: product.uniqueId,
+        name: product.name,
+        price: product.price,
+        currency: product.currency,
+        quantity: item.quantity,
+        image: product.images?.[0]?.url || null,
+        stock: product.stock,
+        is_active: product.isActive,
+        shop_id: shopData.uniqueId || product.shopId,
+      }
+    }).filter(Boolean)
   }
 
   /**
@@ -34,33 +115,7 @@ export default class CartController extends RolesController {
         return response.ok(formatSuccessMessage('Cart retrieved', { cart: null, items: [], total: 0 }))
       }
 
-      const items = await CartItem.query()
-        .where('cartId', cart.uniqueId)
-        .preload('product', (productQuery) => {
-          productQuery.select('uniqueId', 'shopId', 'name', 'price', 'currency', 'images', 'stock', 'isActive')
-        })
-
-      const itemsWithDetails = items.map((item) => {
-        const product = item.product as any
-        if (!product) return null
-
-        const shop = product.$parent?.shop as any
-        const shopData = shop || { uniqueId: product.shopId }
-
-        return {
-          id: item.uniqueId,
-          product_id: product.uniqueId,
-          name: product.name,
-          price: product.price,
-          currency: product.currency,
-          quantity: item.quantity,
-          image: product.images?.[0]?.url || null,
-          stock: product.stock,
-          is_active: product.isActive,
-          shop_id: shopData.uniqueId || product.shopId,
-        }
-      }).filter(Boolean)
-
+      const itemsWithDetails = await this.loadCartItems(cart)
       const total = itemsWithDetails.reduce((sum: any, item: any) => sum + item.price * item.quantity, 0)
 
       return response.ok(formatSuccessMessage('Cart retrieved', {
@@ -77,7 +132,7 @@ export default class CartController extends RolesController {
 
   /**
    * POST /api/user/cart/items
-   * Add a product to the user's cart.
+   * Add a product to the authenticated user's cart.
    * Body: { product_id, quantity? }
    */
   public async addItem({ auth, request, response }: HttpContextContract) {
@@ -93,13 +148,8 @@ export default class CartController extends RolesController {
         .where('isActive', true)
         .firstOrFail()
 
-      let cart = await Cart.query().where('userId', userId).first()
-      if (!cart) {
-        cart = await Cart.create({
-          uniqueId: genRandomUuid(),
-          userId,
-        })
-      }
+      const cart = await this.getOrCreateUserCart(userId)
+      await this.ensureShopConsistency(cart, product.shopId)
 
       const existingItem = await CartItem.query()
         .where('cartId', cart.uniqueId)
@@ -203,6 +253,8 @@ export default class CartController extends RolesController {
 
       if (cart) {
         await CartItem.query().where('cartId', cart.uniqueId).delete()
+        cart.shopId = null
+        await cart.save()
       }
 
       await this.emitCartEvent(userId, 'cart.cleared', {
@@ -218,13 +270,6 @@ export default class CartController extends RolesController {
   /**
    * POST /api/user/cart/checkout
    * Create a PaymentIntent from the authenticated user's cart items.
-   * Body: {
-   *   fiat_currency?,
-   *   payment_method?,
-   *   delivery_address?: { full_name, phone, address, city, state, country },
-   *   delivery_state?: string,
-   *   promo_code?: string
-   * }
    */
   public async checkout({ auth, request, response }: HttpContextContract) {
     try {
@@ -270,12 +315,35 @@ export default class CartController extends RolesController {
       // Calculate delivery fee
       const deliverySettings = await ShopDeliverySetting.query().where('shopId', shop.uniqueId).first()
       let deliveryFee = 0
+      let deliveryFeeInCheckoutCurrency = 0
       if (deliverySettings && !deliverySettings.hasFreeDelivery) {
+        let rawDeliveryFee = 0
         if (delivery_state && deliverySettings.deliveryZones && deliverySettings.deliveryZones[delivery_state]) {
-          deliveryFee = Number(deliverySettings.deliveryZones[delivery_state])
+          rawDeliveryFee = Number(deliverySettings.deliveryZones[delivery_state])
         } else {
-          deliveryFee = Number(deliverySettings.deliveryFee)
+          rawDeliveryFee = Number(deliverySettings.deliveryFee)
         }
+
+        const shopCurrency = (shop.currency || 'NGN').toUpperCase()
+        const checkoutCurrency = fiatCurrency.toUpperCase()
+        const deliveryFeeCurrency = (deliverySettings.deliveryFeeCurrency || shopCurrency).toUpperCase()
+
+        if (deliveryFeeCurrency !== checkoutCurrency) {
+          try {
+            deliveryFeeInCheckoutCurrency = await CurrencyController.calculateCryptoEquivalent({
+              fiatCurrencyId: (await Currency.query().where('symbol', deliveryFeeCurrency).first())!.uniqueId,
+              fiatAmount: rawDeliveryFee,
+              cryptoCurrencyId: currencyRecord.uniqueId,
+            })
+            deliveryFeeInCheckoutCurrency = parseFloat(deliveryFeeInCheckoutCurrency.toFixed(2))
+          } catch {
+            deliveryFeeInCheckoutCurrency = rawDeliveryFee
+          }
+        } else {
+          deliveryFeeInCheckoutCurrency = rawDeliveryFee
+        }
+
+        deliveryFee = rawDeliveryFee
       }
 
       // Calculate discount
@@ -289,7 +357,7 @@ export default class CartController extends RolesController {
         }
       }
 
-      const totalAmount = itemsTotal + deliveryFee - discountAmount
+      const totalAmount = itemsTotal + deliveryFeeInCheckoutCurrency - discountAmount
       const fiatAmount = totalAmount > 0 ? parseFloat(totalAmount.toFixed(2)) : 0
 
       const referenceId = genRandomUuid()
@@ -315,7 +383,10 @@ export default class CartController extends RolesController {
           delivery_state,
           promo_code,
           items_total: itemsTotal,
-          delivery_fee: deliveryFee,
+          delivery_fee: deliveryFeeInCheckoutCurrency,
+          delivery_fee_currency: fiatCurrency,
+          delivery_fee_local: deliveryFee,
+          delivery_fee_local_currency: deliverySettings?.deliveryFeeCurrency || shop.currency || 'NGN',
           discount_amount: discountAmount,
         },
       })
@@ -351,7 +422,10 @@ export default class CartController extends RolesController {
           shop_id: shop.uniqueId,
           items_count: items.length,
           items_total: itemsTotal,
-          delivery_fee: deliveryFee,
+          delivery_fee: deliveryFeeInCheckoutCurrency,
+          delivery_fee_currency: fiatCurrency,
+          delivery_fee_local: deliveryFee,
+          delivery_fee_local_currency: deliverySettings?.deliveryFeeCurrency || shop.currency || 'NGN',
           discount_amount: discountAmount,
           delivery_address,
           delivery_state,
@@ -389,6 +463,19 @@ export default class CartController extends RolesController {
         assets: assets.length,
       })
 
+      const itemsWithProduct = items.map((item) => {
+        const product = item.product as any
+        return {
+          product_id: product.uniqueId,
+          name: product.name,
+          price: product.price,
+          currency: product.currency,
+          quantity: item.quantity,
+          image: product.images?.[0]?.url || null,
+          shop_id: shop.uniqueId,
+        }
+      })
+
       return response.ok(formatSuccessMessage('Checkout session created', {
         payment_intent_id: intent.uniqueId,
         reference_id: referenceId,
@@ -397,11 +484,15 @@ export default class CartController extends RolesController {
         shop_id: shop.uniqueId,
         items_count: items.length,
         items_total: itemsTotal,
-        delivery_fee: deliveryFee,
+        delivery_fee: deliveryFeeInCheckoutCurrency,
+        delivery_fee_currency: fiatCurrency,
+        delivery_fee_local: deliveryFee,
+        delivery_fee_local_currency: deliverySettings?.deliveryFeeCurrency || shop.currency || 'NGN',
         discount_amount: discountAmount,
         delivery_address,
         delivery_state,
         assets,
+        items: itemsWithProduct,
       }))
     } catch (error) {
       return response.badRequest(await formatErrorMessage(error))
@@ -411,7 +502,6 @@ export default class CartController extends RolesController {
   /**
    * POST /api/user/cart/wallet
    * Selects a crypto currency for a cart checkout and returns a wallet address.
-   * Body: { payment_intent_id, crypto_currency_id }
    */
   public async checkoutWallet({ request, response }: HttpContextContract) {
     try {
@@ -462,15 +552,6 @@ export default class CartController extends RolesController {
   /**
    * POST /api/cart/checkout
    * Public guest checkout — no auth required.
-   * Body: {
-   *   customer_email,
-   *   items: [{product_id, quantity, price, shopId}],
-   *   fiat_currency?,
-   *   payment_method?,
-   *   delivery_address?: { full_name, phone, address, city, state, country },
-   *   delivery_state?: string,
-   *   promo_code?: string
-   * }
    */
   public async guestCheckout({ request, response }: HttpContextContract) {
     try {
@@ -507,18 +588,39 @@ export default class CartController extends RolesController {
 
       if (itemsTotal <= 0) throw new Error('Cart total must be greater than 0.')
 
-      // Calculate delivery fee
       const deliverySettings = await ShopDeliverySetting.query().where('shopId', shop.uniqueId).first()
       let deliveryFee = 0
+      let deliveryFeeInCheckoutCurrency = 0
       if (deliverySettings && !deliverySettings.hasFreeDelivery) {
+        let rawDeliveryFee = 0
         if (delivery_state && deliverySettings.deliveryZones && deliverySettings.deliveryZones[delivery_state]) {
-          deliveryFee = Number(deliverySettings.deliveryZones[delivery_state])
+          rawDeliveryFee = Number(deliverySettings.deliveryZones[delivery_state])
         } else {
-          deliveryFee = Number(deliverySettings.deliveryFee)
+          rawDeliveryFee = Number(deliverySettings.deliveryFee)
         }
+
+        const shopCurrency = (shop.currency || 'NGN').toUpperCase()
+        const checkoutCurrency = fiatCurrency.toUpperCase()
+        const deliveryFeeCurrency = (deliverySettings.deliveryFeeCurrency || shopCurrency).toUpperCase()
+
+        if (deliveryFeeCurrency !== checkoutCurrency) {
+          try {
+            deliveryFeeInCheckoutCurrency = await CurrencyController.calculateCryptoEquivalent({
+              fiatCurrencyId: (await Currency.query().where('symbol', deliveryFeeCurrency).first())!.uniqueId,
+              fiatAmount: rawDeliveryFee,
+              cryptoCurrencyId: currencyRecord.uniqueId,
+            })
+            deliveryFeeInCheckoutCurrency = parseFloat(deliveryFeeInCheckoutCurrency.toFixed(2))
+          } catch {
+            deliveryFeeInCheckoutCurrency = rawDeliveryFee
+          }
+        } else {
+          deliveryFeeInCheckoutCurrency = rawDeliveryFee
+        }
+
+        deliveryFee = rawDeliveryFee
       }
 
-      // Calculate discount
       let discountAmount = 0
       if (deliverySettings) {
         if (promo_code && deliverySettings.promoCode && promo_code === deliverySettings.promoCode) {
@@ -529,7 +631,7 @@ export default class CartController extends RolesController {
         }
       }
 
-      const totalAmount = itemsTotal + deliveryFee - discountAmount
+      const totalAmount = itemsTotal + deliveryFeeInCheckoutCurrency - discountAmount
       const fiatAmount = totalAmount > 0 ? parseFloat(totalAmount.toFixed(2)) : 0
 
       const referenceId = genRandomUuid()
@@ -551,7 +653,10 @@ export default class CartController extends RolesController {
           delivery_state,
           promo_code,
           items_total: itemsTotal,
-          delivery_fee: deliveryFee,
+          delivery_fee: deliveryFeeInCheckoutCurrency,
+          delivery_fee_currency: fiatCurrency,
+          delivery_fee_local: deliveryFee,
+          delivery_fee_local_currency: deliverySettings?.deliveryFeeCurrency || shop.currency || 'NGN',
           discount_amount: discountAmount,
         },
       })
@@ -579,7 +684,10 @@ export default class CartController extends RolesController {
           shop_id: shop.uniqueId,
           items_count: items.length,
           items_total: itemsTotal,
-          delivery_fee: deliveryFee,
+          delivery_fee: deliveryFeeInCheckoutCurrency,
+          delivery_fee_currency: fiatCurrency,
+          delivery_fee_local: deliveryFee,
+          delivery_fee_local_currency: deliverySettings?.deliveryFeeCurrency || shop.currency || 'NGN',
           discount_amount: discountAmount,
           delivery_address,
           delivery_state,
@@ -609,6 +717,19 @@ export default class CartController extends RolesController {
         })
       )
 
+      const itemsWithProduct = items.map((item) => {
+        const product = item.product as any
+        return {
+          product_id: product.uniqueId,
+          name: product.name,
+          price: product.price,
+          currency: product.currency,
+          quantity: item.quantity,
+          image: product.images?.[0]?.url || null,
+          shop_id: shop.uniqueId,
+        }
+      })
+
       return response.ok(formatSuccessMessage('Checkout session created', {
         payment_intent_id: intent.uniqueId,
         reference_id: referenceId,
@@ -617,11 +738,15 @@ export default class CartController extends RolesController {
         shop_id: shop.uniqueId,
         items_count: items.length,
         items_total: itemsTotal,
-        delivery_fee: deliveryFee,
+        delivery_fee: deliveryFeeInCheckoutCurrency,
+        delivery_fee_currency: fiatCurrency,
+        delivery_fee_local: deliveryFee,
+        delivery_fee_local_currency: deliverySettings?.deliveryFeeCurrency || shop.currency || 'NGN',
         discount_amount: discountAmount,
         delivery_address,
         delivery_state,
         assets,
+        items: itemsWithProduct,
       }))
     } catch (error) {
       return response.badRequest(await formatErrorMessage(error))
@@ -631,7 +756,6 @@ export default class CartController extends RolesController {
   /**
    * POST /api/cart/wallet
    * Public guest wallet creation — no auth required.
-   * Body: { reference_id, crypto_currency_id }
    */
   public async guestCheckoutWallet({ request, response }: HttpContextContract) {
     try {
@@ -674,6 +798,164 @@ export default class CartController extends RolesController {
         },
         message: setup.wallet.address.includes('fib') ? 'Fiber invoice created successfully' : 'Payment initiated successfully',
       })
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * GET /api/cart
+   * Public guest cart — no auth required.
+   * Query: guest_token
+   */
+  public async guestShow({ request, response }: HttpContextContract) {
+    try {
+      const guestToken = request.input('guest_token')
+      if (!guestToken) {
+        return response.ok(formatSuccessMessage('Cart retrieved', { cart: null, items: [], total: 0 }))
+      }
+
+      const cart = await Cart.query().where('guestToken', guestToken).first()
+      if (!cart) {
+        return response.ok(formatSuccessMessage('Cart retrieved', { cart: null, items: [], total: 0 }))
+      }
+
+      const itemsWithDetails = await this.loadCartItems(cart)
+      const total = itemsWithDetails.reduce((sum: any, item: any) => sum + item.price * item.quantity, 0)
+
+      return response.ok(formatSuccessMessage('Cart retrieved', {
+        cart_id: cart.uniqueId,
+        items: itemsWithDetails,
+        total,
+        currency: itemsWithDetails[0]?.currency || 'NGN',
+        item_count: itemsWithDetails.length,
+      }))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * POST /api/cart/items
+   * Public guest add to cart — no auth required.
+   * Body: { product_id, quantity?, guest_token? }
+   * If guest_token is not provided, a new one is generated and returned.
+   */
+  public async guestAddItem({ request, response }: HttpContextContract) {
+    try {
+      const { product_id, quantity = 1, guest_token } = request.only(['product_id', 'quantity', 'guest_token'])
+
+      if (!product_id) throw new Error('product_id is required.')
+      if (quantity < 1) throw new Error('quantity must be at least 1.')
+
+      const product = await ShopProduct.query()
+        .where('uniqueId', product_id)
+        .where('isActive', true)
+        .firstOrFail()
+
+      const token = guest_token || genRandomUuid()
+      const cart = await this.getOrCreateGuestCart(token)
+      await this.ensureShopConsistency(cart, product.shopId)
+
+      const existingItem = await CartItem.query()
+        .where('cartId', cart.uniqueId)
+        .where('productId', product_id)
+        .first()
+
+      if (existingItem) {
+        existingItem.quantity = Math.min(existingItem.quantity + quantity, product.stock)
+        await existingItem.save()
+      } else {
+        await CartItem.create({
+          uniqueId: genRandomUuid(),
+          cartId: cart.uniqueId,
+          productId: product_id,
+          quantity: Math.min(quantity, product.stock),
+        })
+      }
+
+      return response.ok(formatSuccessMessage('Item added to cart', {
+        guest_token: token,
+        cart_id: cart.uniqueId,
+      }))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * PUT /api/cart/items/:itemId
+   * Public guest update cart item — no auth required.
+   * Query: guest_token
+   * Body: { quantity }
+   */
+  public async guestUpdateItem({ request, response, params }: HttpContextContract) {
+    try {
+      const guestToken = request.input('guest_token')
+      if (!guestToken) throw new Error('guest_token is required')
+
+      const { quantity } = request.only(['quantity'])
+      if (quantity === undefined || quantity === null) throw new Error('quantity is required.')
+      if (quantity < 1) throw new Error('quantity must be at least 1.')
+
+      const cart = await Cart.query().where('guestToken', guestToken).firstOrFail()
+      const item = await CartItem.query()
+        .where('uniqueId', params.itemId)
+        .where('cartId', cart.uniqueId)
+        .firstOrFail()
+
+      const product = await ShopProduct.query().where('uniqueId', item.productId).firstOrFail()
+      item.quantity = Math.min(quantity, product.stock)
+      await item.save()
+
+      return response.ok(formatSuccessMessage('Cart item updated', null))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * DELETE /api/cart/items/:itemId
+   * Public guest remove cart item — no auth required.
+   * Query: guest_token
+   */
+  public async guestRemoveItem({ request, response, params }: HttpContextContract) {
+    try {
+      const guestToken = request.input('guest_token')
+      if (!guestToken) throw new Error('guest_token is required')
+
+      const cart = await Cart.query().where('guestToken', guestToken).firstOrFail()
+      const item = await CartItem.query()
+        .where('uniqueId', params.itemId)
+        .where('cartId', cart.uniqueId)
+        .firstOrFail()
+
+      await item.delete()
+
+      return response.ok(formatSuccessMessage('Item removed from cart', null))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
+
+  /**
+   * DELETE /api/cart
+   * Public guest clear cart — no auth required.
+   * Query: guest_token
+   */
+  public async guestClear({ request, response }: HttpContextContract) {
+    try {
+      const guestToken = request.input('guest_token')
+      if (!guestToken) throw new Error('guest_token is required')
+
+      const cart = await Cart.query().where('guestToken', guestToken).first()
+      if (cart) {
+        await CartItem.query().where('cartId', cart.uniqueId).delete()
+        cart.shopId = null
+        await cart.save()
+      }
+
+      return response.ok(formatSuccessMessage('Cart cleared', null))
     } catch (error) {
       return response.badRequest(await formatErrorMessage(error))
     }

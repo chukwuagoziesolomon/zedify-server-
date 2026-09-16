@@ -25,4 +25,10 @@ Route.group(() => {
   Route.post('/cart/checkout', 'CartController.guestCheckout')
   Route.post('/cart/wallet', 'CartController.guestCheckoutWallet')
   Route.get('/shop/:subdomain/delivery-settings', 'ShopDeliverySettingController.publicShow')
+
+  Route.get('/cart', 'CartController.guestShow')
+  Route.post('/cart/items', 'CartController.guestAddItem')
+  Route.put('/cart/items/:itemId', 'CartController.guestUpdateItem')
+  Route.delete('/cart/items/:itemId', 'CartController.guestRemoveItem')
+  Route.delete('/cart', 'CartController.guestClear')
 }).prefix('/api')

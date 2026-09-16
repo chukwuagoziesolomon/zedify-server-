@@ -13,7 +13,13 @@ export default class Cart extends BaseModel {
   public uniqueId: string = genRandomUuid()
 
   @column()
-  public userId: string
+  public userId: string | null
+
+  @column()
+  public shopId: string | null
+
+  @column()
+  public guestToken: string | null
 
   @column.dateTime({ autoCreate: true })
   public createdAt: DateTime
