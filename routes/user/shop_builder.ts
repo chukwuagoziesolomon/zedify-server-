@@ -61,4 +61,8 @@ Route.group(() => {
   Route.get('/analytics', 'ShopOrderController.analytics')
   Route.get('/:orderId', 'ShopOrderController.show')
   Route.patch('/:orderId/status', 'ShopOrderController.updateStatus')
+
+  Route.get('/:orderId/messages', 'OrderMessageController.index')
+  Route.post('/:orderId/messages', 'OrderMessageController.store')
+  Route.patch('/:orderId/messages/read', 'OrderMessageController.markAsRead')
 }).prefix('/api/user/shop/orders').middleware('auth:user')

@@ -18,4 +18,7 @@ Route.group(() => {
 
   /** DELETE /api/client/payment-links/:id — delete a payment link */
   Route.delete('/:id', 'PaymentLinkController.destroy').middleware('auth:user')
+
+  /** GET /api/client/payment-links/analytics — payment link performance */
+  Route.get('/analytics', 'PaymentLinkController.analytics').middleware('auth:user')
 }).prefix('/api/client/payment-links')

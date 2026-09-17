@@ -46,6 +46,39 @@ export default class BusinessSetting extends BaseModel {
   @column()
   public webhookSigningSecret: string | null
 
+  @column()
+  public autoSettlementEnabled: boolean = false
+
+  @column()
+  public autoSettlementTime: string = '18:00'
+
+  @column()
+  public payoutMethod: string = 'wallet'
+
+  @column()
+  public payoutWalletId: string | null = null
+
+  @column()
+  public payoutCurrencyId: string | null = null
+
+  @column()
+  public payoutBankAccountNo: string | null = null
+
+  @column()
+  public payoutBankName: string | null = null
+
+  @column()
+  public payoutAccountName: string | null = null
+
+  @column()
+  public payoutBankCode: string | null = null
+
+  @column.dateTime()
+  public lastPayoutAt: DateTime | null = null
+
+  @column()
+  public lastPayoutStatus: string | null = null
+
   @column.dateTime()
   public testKeyExpiresAt: DateTime | null
 

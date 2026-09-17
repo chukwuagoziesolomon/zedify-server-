@@ -16,6 +16,17 @@ export default class SettingsGeneralController extends RolesController {
         current_environment: businessSetting.currentEnvironment || null,
         payout_interval: businessSetting.payoutInterval || null,
         payout_type: businessSetting.payoutType || null,
+        auto_settlement_enabled: businessSetting.autoSettlementEnabled || false,
+        auto_settlement_time: businessSetting.autoSettlementTime || '18:00',
+        payout_method: businessSetting.payoutMethod || 'wallet',
+        payout_wallet_id: businessSetting.payoutWalletId || null,
+        payout_currency_id: businessSetting.payoutCurrencyId || null,
+        payout_bank_account_no: businessSetting.payoutBankAccountNo || null,
+        payout_bank_name: businessSetting.payoutBankName || null,
+        payout_account_name: businessSetting.payoutAccountName || null,
+        payout_bank_code: businessSetting.payoutBankCode || null,
+        last_payout_at: businessSetting.lastPayoutAt?.toISO() || null,
+        last_payout_status: businessSetting.lastPayoutStatus || null,
       }
       response.status(200).json(formatSuccessMessage('Settings retrieved successfully', data))
     } catch (error) {
@@ -34,12 +45,32 @@ export default class SettingsGeneralController extends RolesController {
       if (payload.current_environment) businessSetting.currentEnvironment = payload.current_environment
       if (payload.payout_interval) businessSetting.payoutInterval = payload.payout_interval
       if (payload.payout_type) businessSetting.payoutType = payload.payout_type
+      if (payload.auto_settlement_enabled !== undefined) businessSetting.autoSettlementEnabled = payload.auto_settlement_enabled
+      if (payload.auto_settlement_time) businessSetting.autoSettlementTime = payload.auto_settlement_time
+      if (payload.payout_method) businessSetting.payoutMethod = payload.payout_method
+      if (payload.payout_wallet_id !== undefined) businessSetting.payoutWalletId = payload.payout_wallet_id || null
+      if (payload.payout_currency_id !== undefined) businessSetting.payoutCurrencyId = payload.payout_currency_id || null
+      if (payload.payout_bank_account_no !== undefined) businessSetting.payoutBankAccountNo = payload.payout_bank_account_no || null
+      if (payload.payout_bank_name !== undefined) businessSetting.payoutBankName = payload.payout_bank_name || null
+      if (payload.payout_account_name !== undefined) businessSetting.payoutAccountName = payload.payout_account_name || null
+      if (payload.payout_bank_code !== undefined) businessSetting.payoutBankCode = payload.payout_bank_code || null
       await businessSetting.save()
       const data = {
         fee_bearer: businessSetting.feeBearer,
         current_environment: businessSetting.currentEnvironment,
         payout_interval: businessSetting.payoutInterval,
         payout_type: businessSetting.payoutType,
+        auto_settlement_enabled: businessSetting.autoSettlementEnabled,
+        auto_settlement_time: businessSetting.autoSettlementTime,
+        payout_method: businessSetting.payoutMethod,
+        payout_wallet_id: businessSetting.payoutWalletId,
+        payout_currency_id: businessSetting.payoutCurrencyId,
+        payout_bank_account_no: businessSetting.payoutBankAccountNo,
+        payout_bank_name: businessSetting.payoutBankName,
+        payout_account_name: businessSetting.payoutAccountName,
+        payout_bank_code: businessSetting.payoutBankCode,
+        last_payout_at: businessSetting.lastPayoutAt?.toISO() || null,
+        last_payout_status: businessSetting.lastPayoutStatus || null,
       }
       response.status(200).json(formatSuccessMessage('Settings updated successfully', data))
     } catch (error) {

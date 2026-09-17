@@ -52,6 +52,30 @@ class WhatsAppNotificationService {
       Logger.warn(`[WhatsAppNotification] Failed for ${data.referenceId}: ${error?.response?.data?.error?.message || error.message}`)
     }
   }
+
+  public async sendMessage(phone: string | null, message: string): Promise<void> {
+    const token = Env.get('WHATSAPP_ACCESS_TOKEN', '')
+    const phoneNumberId = Env.get('WHATSAPP_PHONE_NUMBER_ID', '')
+    if (!phone || !token || !phoneNumberId) return
+
+    const recipient = phone.replace(/[^\d]/g, '')
+    if (!recipient) return
+
+    try {
+      const version = Env.get('WHATSAPP_API_VERSION', 'v20.0')
+      await axios.post(`https://graph.facebook.com/${version}/${phoneNumberId}/messages`, {
+        messaging_product: 'whatsapp',
+        to: recipient,
+        type: 'text',
+        text: { body: message },
+      }, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      })
+      Logger.info(`[WhatsAppNotification] Text message sent to ${recipient}`)
+    } catch (error: any) {
+      Logger.warn(`[WhatsAppNotification] Failed for ${recipient}: ${error?.response?.data?.error?.message || error.message}`)
+    }
+  }
 }
 
 export default new WhatsAppNotificationService()

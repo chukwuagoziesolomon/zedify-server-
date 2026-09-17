@@ -31,4 +31,6 @@ Route.group(() => {
   Route.put('/cart/items/:itemId', 'CartController.guestUpdateItem')
   Route.delete('/cart/items/:itemId', 'CartController.guestRemoveItem')
   Route.delete('/cart', 'CartController.guestClear')
+
+  Route.get('/checkout/status/:referenceId', 'PaymentLinkController.publicStatus')
 }).prefix('/api')

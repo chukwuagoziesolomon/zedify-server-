@@ -204,6 +204,19 @@ class WithdrawalServiceClass {
     }
   }
 
+  // ─── Auto-settlement withdrawal (no OTP) ────────────────────────────────────
+
+  public async processAutoSettlementWithdrawal(
+    userId: string,
+    payload: WithdrawalPayload
+  ): Promise<{ txHash?: string; status: string; message: string; transactionId?: string }> {
+    if (payload.type === 'crypto') {
+      return this.processCryptoWithdrawal(userId, payload as CryptoWithdrawalPayload)
+    } else {
+      return this.processFiatWithdrawal(userId, payload as FiatWithdrawalPayload)
+    }
+  }
+
   // ─── Crypto send ────────────────────────────────────────────────────────────
 
   private async processCryptoWithdrawal(

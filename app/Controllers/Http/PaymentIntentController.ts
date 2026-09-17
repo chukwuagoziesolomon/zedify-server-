@@ -9,6 +9,8 @@ import BusinessCurrencyController from './BusinessCurrencyController'
 import CryptoNetwork from 'App/Models/CryptoNetwork'
 import CurrencyController from './CurrencyController'
 import Wallet from 'App/Models/Wallet'
+import Shop from 'App/Models/Shop'
+import User from 'App/Models/User'
 import SseService from 'App/Services/SseService'
 import { resolvePreferredCryptoCurrency } from 'App/helpers/cryptoCurrencySelection'
 import PaymentSetupService from 'App/Services/PaymentSetupService'
@@ -236,4 +238,97 @@ export default class PaymentIntentController extends RolesController {
     }
   }
 
+  public async showOrderSummary({ auth, request, response }: HttpContextContract) {
+    try {
+      const userId = this.allowOnlyLoggedInUsers(auth)
+      const identifier = String(request.param('id'))
+
+      const intent = await PaymentIntent.query()
+        .where('uniqueId', identifier)
+        .orWhere('businessReferenceId', identifier)
+        .firstOrFail()
+
+      if (intent.businessId !== userId) {
+        return response.status(403).json({ error: true, message: 'Forbidden' })
+      }
+
+      const fiatCurrency = await Currency.query().where('uniqueId', intent.fiatCurrencyId).first()
+      const cryptoCurrency = intent.cryptoCurrencyId
+        ? await Currency.query().where('uniqueId', intent.cryptoCurrencyId).first()
+        : null
+      const cryptoNetwork = cryptoCurrency?.cryptoNetworkId
+        ? await CryptoNetwork.query().where('uniqueId', cryptoCurrency.cryptoNetworkId).first()
+        : null
+      const wallet = intent.walletId
+        ? await Wallet.query().where('uniqueId', intent.walletId).first()
+        : null
+
+      const shop = await Shop.query()
+        .where('userId', intent.businessId)
+        .whereRaw("metadata->>'shop_id' = ?", [((intent.metadata || {}).shop_id)])
+        .first()
+        .catch(() => null)
+
+      const customer = intent.customerId
+        ? await User.query().where('uniqueId', intent.customerId).first()
+        : null
+
+      const metadata = intent.metadata || {}
+      const itemsTotal = Number(metadata.items_total || 0)
+      const deliveryFee = Number(metadata.delivery_fee || 0)
+      const discountAmount = Number(metadata.discount_amount || 0)
+      const totalAmount = intent.fiatAmount
+
+      const timeline: Array<{ event: string; timestamp: string | null }> = []
+      timeline.push({ event: 'created', timestamp: intent.createdAt?.toISO() || null })
+      if (intent.receivedPaymentAt) {
+        timeline.push({ event: 'payment_received', timestamp: intent.receivedPaymentAt.toISO() })
+      }
+      if (intent.status === PaymentIntentStatus.PAYMENT_COMPLETED) {
+        timeline.push({ event: 'payment_confirmed', timestamp: intent.completedAt?.toISO() || intent.updatedAt?.toISO() || null })
+      }
+      if (intent.completedAt) {
+        timeline.push({ event: 'completed', timestamp: intent.completedAt.toISO() })
+      }
+
+      return response.ok(formatSuccessMessage('Order summary retrieved', {
+        payment_intent_id: intent.uniqueId,
+        reference_id: intent.businessReferenceId,
+        status: intent.status,
+        order_status: metadata.order_status || 'pending',
+        fiat_amount: intent.fiatAmount,
+        fiat_currency: fiatCurrency?.symbol || null,
+        items_total: itemsTotal,
+        delivery_fee: deliveryFee,
+        delivery_fee_currency: metadata.delivery_fee_currency || fiatCurrency?.symbol || null,
+        discount_amount: discountAmount,
+        total_amount: totalAmount,
+        payment_method: metadata.payment_method || null,
+        shop_id: metadata.shop_id || null,
+        shop_name: shop?.businessName || null,
+        items: metadata.items || [],
+        delivery_address: metadata.delivery_address || null,
+        delivery_state: metadata.delivery_state || null,
+        customer: customer
+          ? { email: customer.email, phone: customer.phone }
+          : { email: intent.customerEmail, phone: metadata.customer_phone || null },
+        wallet: wallet
+          ? {
+              address: wallet.walletAddress,
+              qr_code: wallet.qrCodeUrl || null,
+              network: cryptoNetwork?.name || null,
+              currency: cryptoCurrency?.symbol || null,
+              amount: intent.feeInCrypto || 0,
+            }
+          : null,
+        timeline,
+        created_at: intent.createdAt?.toISO() || null,
+        paid_at: intent.receivedPaymentAt?.toISO() || null,
+        completed_at: intent.completedAt?.toISO() || null,
+        updated_at: intent.updatedAt?.toISO() || null,
+      }))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
 }

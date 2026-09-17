@@ -2,6 +2,7 @@ import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
 import { DateTime } from 'luxon'
 import { resolvePreferredCryptoCurrency } from 'App/helpers/cryptoCurrencySelection'
 import PaymentSetupService from 'App/Services/PaymentSetupService'
+import Wallet from 'App/Models/Wallet'
 import PaymentLink from 'App/Models/PaymentLink'
 import PaymentIntent from 'App/Models/PaymentIntent'
 import Currency from 'App/Models/Currency'
@@ -408,7 +409,125 @@ export default class PaymentLinkController extends RolesController {
     }
   }
 
+  /**
+   * GET /api/checkout/status/:referenceId
+   * Public order status — no auth required.
+   * Returns public-safe checkout details by reference_id.
+   */
+  public async publicStatus({ params, response }: HttpContextContract) {
+    try {
+      const referenceId = String(params.referenceId)
+      const intent = await PaymentIntent.query()
+        .where('businessReferenceId', referenceId)
+        .firstOrFail()
+
+      const fiatCurrency = await Currency.query().where('uniqueId', intent.fiatCurrencyId).first()
+      const cryptoCurrency = intent.cryptoCurrencyId
+        ? await Currency.query().where('uniqueId', intent.cryptoCurrencyId).first()
+        : null
+      const cryptoNetwork = cryptoCurrency?.cryptoNetworkId
+        ? await CryptoNetwork.query().where('uniqueId', cryptoCurrency.cryptoNetworkId).first()
+        : null
+      const wallet = intent.walletId
+        ? await Wallet.query().where('uniqueId', intent.walletId).first()
+        : null
+
+      const metadata = intent.metadata || {}
+      const itemsTotal = Number(metadata.items_total || 0)
+      const deliveryFee = Number(metadata.delivery_fee || 0)
+      const discountAmount = Number(metadata.discount_amount || 0)
+
+      return response.ok({
+        success: true,
+        data: {
+          reference_id: intent.businessReferenceId,
+          payment_intent_id: intent.uniqueId,
+          status: intent.status,
+          order_status: metadata.order_status || 'pending',
+          fiat_amount: intent.fiatAmount,
+          fiat_currency: fiatCurrency?.symbol || null,
+          items_count: (metadata.items || []).length,
+          items_total: itemsTotal,
+          delivery_fee: deliveryFee,
+          delivery_fee_currency: metadata.delivery_fee_currency || fiatCurrency?.symbol || null,
+          discount_amount: discountAmount,
+          total_amount: intent.fiatAmount,
+          payment_method: metadata.payment_method || null,
+          shop_id: metadata.shop_id || null,
+          wallet: wallet
+            ? {
+                address: wallet.walletAddress,
+                network: cryptoNetwork?.name || null,
+                currency: cryptoCurrency?.symbol || null,
+                amount: intent.feeInCrypto || 0,
+              }
+            : null,
+          expires_at: wallet?.expiresAt?.toISO() || null,
+          created_at: intent.createdAt?.toISO() || null,
+          paid_at: intent.receivedPaymentAt?.toISO() || null,
+          updated_at: intent.updatedAt?.toISO() || null,
+        },
+      })
+    } catch (error) {
+      return response.notFound(await formatErrorMessage(error))
+    }
+  }
+
   // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  /** GET /api/client/payment-links/analytics */
+  public async analytics({ auth, request, response }: HttpContextContract) {
+    try {
+      const userId = this.allowOnlyLoggedInUsers(auth)
+      const now = DateTime.now()
+      const start = request.input('from')
+        ? DateTime.fromISO(String(request.input('from'))).startOf('day')
+        : now.minus({ days: 30 }).startOf('day')
+      const end = request.input('to')
+        ? DateTime.fromISO(String(request.input('to'))).endOf('day')
+        : now.endOf('day')
+
+      const links = await PaymentLink.query()
+        .where('businessId', userId)
+        .whereBetween('createdAt', [start.toISO()!, end.toISO()!])
+        .orderBy('createdAt', 'desc')
+
+      const linkData = await Promise.all(
+        links.map(async (link) => {
+          const intents = await PaymentIntent.query()
+            .where('businessId', userId)
+            .where('businessReferenceId', 'like', `${link.slug}%`)
+            .whereBetween('createdAt', [start.toISO()!, end.toISO()!])
+
+          const completed = intents.filter((i) => i.status === PaymentIntentStatus.PAYMENT_COMPLETED)
+          const revenue = completed.reduce((sum, i) => sum + Number(i.fiatAmount), 0)
+
+          return {
+            id: link.uniqueId,
+            slug: link.slug,
+            title: link.title,
+            usage_count: link.usageCount,
+            order_count: completed.length,
+            revenue,
+            currency: link.fiatCurrencyId,
+            is_active: link.isActive(),
+            created_at: link.createdAt,
+          }
+        })
+      )
+
+      return response.ok(formatSuccessMessage('Payment link analytics retrieved', {
+        from: start.toISO(),
+        to: end.toISO(),
+        total_clicks: linkData.reduce((sum, link) => sum + link.usage_count, 0),
+        total_orders: linkData.reduce((sum, link) => sum + link.order_count, 0),
+        total_revenue: linkData.reduce((sum, link) => sum + link.revenue, 0),
+        links: linkData,
+      }))
+    } catch (error) {
+      return response.badRequest(await formatErrorMessage(error))
+    }
+  }
 
   private formatLink(link: PaymentLink) {
     return {

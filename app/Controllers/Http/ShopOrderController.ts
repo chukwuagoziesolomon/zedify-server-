@@ -115,8 +115,9 @@ export default class ShopOrderController extends RolesController {
       const end = request.input('to')
         ? DateTime.fromISO(String(request.input('to'))).endOf('day')
         : now.endOf('day')
+      const groupBy = String(request.input('group_by', 'day')).toLowerCase()
 
-      const rows = await Database.from('payment_intent_tb')
+      const summaryRows = await Database.from('payment_intent_tb')
         .where('business_id', shop.userId)
         .whereRaw("metadata->>'shop_id' = ?", [shop.uniqueId])
         .whereBetween('created_at', [start.toISO()!, end.toISO()!])
@@ -128,16 +129,56 @@ export default class ShopOrderController extends RolesController {
         .groupByRaw("COALESCE(metadata->>'order_status', 'pending')")
 
       const byStatus: Record<string, { count: number; amount: number }> = {}
-      for (const row of rows) {
+      for (const row of summaryRows) {
         byStatus[String(row.order_status)] = { count: Number(row.order_count), amount: Number(row.total_amount) }
       }
+
+      const dateTrunc = groupBy === 'week'
+        ? "DATE_TRUNC('week', created_at)"
+        : groupBy === 'month'
+          ? "DATE_TRUNC('month', created_at)"
+          : "DATE_TRUNC('day', created_at)"
+
+      const timeSeriesRows = await Database.from('payment_intent_tb')
+        .where('business_id', shop.userId)
+        .whereRaw("metadata->>'shop_id' = ?", [shop.uniqueId])
+        .whereBetween('created_at', [start.toISO()!, end.toISO()!])
+        .select(
+          Database.raw(`${dateTrunc} AS period`),
+          Database.raw('COUNT(*) AS order_count'),
+          Database.raw('COALESCE(SUM(fiat_amount), 0) AS total_amount')
+        )
+        .groupByRaw(`${dateTrunc}`)
+        .orderBy('period', 'asc')
+
+      const timeSeries = timeSeriesRows.map((row) => ({
+        period: row.period,
+        order_count: Number(row.order_count),
+        total_amount: Number(row.total_amount),
+      }))
+
+      const uniqueCustomers = await Database.from('payment_intent_tb')
+        .where('business_id', shop.userId)
+        .whereRaw("metadata->>'shop_id' = ?", [shop.uniqueId])
+        .whereBetween('created_at', [start.toISO()!, end.toISO()!])
+        .whereNotNull('customer_id')
+        .countDistinct('customer_id as count')
+
+      const linkClicks = await Database.from('payment_links')
+        .where('business_id', shop.userId)
+        .whereBetween('created_at', [start.toISO()!, end.toISO()!])
+        .sum('usage_count as total_clicks')
 
       return response.ok(formatSuccessMessage('Shop analytics retrieved', {
         from: start.toISO(),
         to: end.toISO(),
+        group_by: groupBy,
         total_orders: Object.values(byStatus).reduce((sum, item) => sum + item.count, 0),
         total_revenue: Object.values(byStatus).reduce((sum, item) => sum + item.amount, 0),
+        unique_customers: Number((uniqueCustomers as any)[0]?.count || 0),
+        link_clicks: Number((linkClicks as any)[0]?.total_clicks || 0),
         by_status: byStatus,
+        time_series: timeSeries,
       }))
     } catch (error) {
       return response.badRequest(await formatErrorMessage(error))

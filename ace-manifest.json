@@ -27,6 +27,25 @@
         }
       ]
     },
+    "process:payouts": {
+      "settings": {
+        "loadApp": true,
+        "stayAlive": false
+      },
+      "commandPath": "./commands/ProcessPayouts",
+      "commandName": "process:payouts",
+      "description": "Process scheduled auto-settlements for businesses",
+      "args": [],
+      "aliases": [],
+      "flags": [
+        {
+          "name": "dry-run",
+          "propertyName": "dryRun",
+          "type": "boolean",
+          "description": "Dry run — do not execute transfers"
+        }
+      ]
+    },
     "payments:reconcile-completed": {
       "settings": {
         "loadApp": true,
