@@ -82,6 +82,7 @@ export default Env.rules({
 	FIBER_NETWORK: Env.schema.enum.optional(['mainnet', 'testnet', 'fiber-mainnet', 'fiber-testnet', 'fiber-devnet'] as const),
 
 	CLIENT_URL: Env.schema.string.optional(),
+	HOSTED_CHECKOUT_URL: Env.schema.string.optional(),
 
 	// -------------------------------------------------------------------------
 	// AI Shop Builder (Anthropic)

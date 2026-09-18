@@ -21,6 +21,9 @@ export default class UserIdentity extends BaseModel {
   public subject: string
 
   @column()
+  public address: string | null
+
+  @column()
   public lockScript: string | null
 
   @column()

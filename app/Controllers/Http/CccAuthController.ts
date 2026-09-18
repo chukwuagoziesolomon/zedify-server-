@@ -156,6 +156,33 @@ export default class CccAuthController {
     }
   }
 
+  public async current({ auth, response }: HttpContextContract) {
+    try {
+      const user = auth.use('user').user
+      if (!user) throw new Error('Authentication required')
+
+      const identities = await UserIdentity.query()
+        .where('userId', user.id)
+        .where('provider', SUPPORTED_PROVIDER)
+        .orderBy('lastAuthenticatedAt', 'desc')
+
+      return response.ok(await formatSuccessMessage('CKB identities retrieved', {
+        identities: identities.map((identity) => ({
+          provider: identity.provider,
+          network: identity.network,
+          subject: identity.subject,
+          address: identity.address,
+          lockScript: identity.lockScript,
+          publicKey: identity.publicKey,
+          verifiedAt: identity.verifiedAt?.toISO() || null,
+          lastAuthenticatedAt: identity.lastAuthenticatedAt?.toISO() || null,
+        })),
+      }))
+    } catch (error) {
+      return response.status(this.authErrorStatus(error)).json(await formatErrorMessage(error))
+    }
+  }
+
   private validateIdentity(payload: CccPayload) {
     if (payload.provider !== SUPPORTED_PROVIDER) throw new Error('Only CCC identities are supported')
     const configuredNetwork = this.configuredNetwork()
@@ -207,6 +234,7 @@ export default class CccAuthController {
       provider: SUPPORTED_PROVIDER as 'ccc',
       network: challenge.network as 'mainnet' | 'testnet',
       subject: challenge.subject,
+      address: payload.address || null,
       lockScript: payload.lockScript || null,
       publicKey: payload.publicKey || null,
       verifiedAt: DateTime.now(),

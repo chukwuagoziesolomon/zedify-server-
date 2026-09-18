@@ -43,6 +43,8 @@ import '../routes/payment_status'
 
 // Public payment link checkout routes (for customer checkout — no auth required)
 import '../routes/public'
+import '../routes/api_checkout'
+import '../routes/ckb'
 
 // CKB test routes (temporary)
 import '../routes/test/ckb'

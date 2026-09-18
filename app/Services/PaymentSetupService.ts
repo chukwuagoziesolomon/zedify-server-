@@ -17,6 +17,7 @@ interface CreatePaymentSetupParams {
   userIntId: number
   cryptoCurrency: Currency
   referenceId?: string
+  expectedTestnet?: boolean
 }
 
 interface PaymentSetupResult {
@@ -52,6 +53,15 @@ class PaymentSetupService {
 
     await cryptoCurrency.load('cryptoNetwork')
     const cryptoNetwork = cryptoCurrency.cryptoNetwork
+
+    if (
+      params.expectedTestnet !== undefined &&
+      Boolean(cryptoNetwork.isTestnet) !== params.expectedTestnet
+    ) {
+      throw new Error(
+        `Invalid network for ${params.expectedTestnet ? 'test' : 'live'} checkout`
+      )
+    }
 
     const paymentIntentAmount = Number(paymentIntent.fiatAmount || 0)
     const amountCrypto = await CurrencyController.calculateCryptoEquivalent({

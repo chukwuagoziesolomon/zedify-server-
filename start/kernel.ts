@@ -41,5 +41,6 @@ Server.middleware.register([
 */
 Server.middleware.registerNamed({
   auth: () => import('App/Middleware/Auth'),
-  throttle: () => import('App/Middleware/Throttle')
+  throttle: () => import('App/Middleware/Throttle'),
+  apiKey: () => import('App/Middleware/ApiKey')
 })

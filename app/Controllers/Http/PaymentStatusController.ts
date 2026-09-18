@@ -6,6 +6,7 @@ import Currency from 'App/Models/Currency'
 import FiberInvoice from 'App/Models/FiberInvoice'
 import { PaymentIntentStatus } from 'App/Lib/types'
 import CurrencyController from './CurrencyController'
+import Transaction from 'App/Models/Transaction'
 
 /** How long in ms between SSE heartbeats / status re-checks */
 const SSE_POLL_INTERVAL_MS = 4_000
@@ -224,6 +225,21 @@ export default class PaymentStatusController {
       }
     }
 
+    const transaction = await Transaction.query()
+      .where('paymentIntentId', intent.uniqueId)
+      .where('type', 'receive')
+      .orderBy('createdAt', 'desc')
+      .first()
+    const fiberInvoice = await FiberInvoice.query()
+      .where('paymentIntentId', intent.uniqueId)
+      .orderBy('createdAt', 'desc')
+      .first()
+    const transactionHash = transaction?.txHash || null
+    const paymentHash = transaction?.paymentHash || fiberInvoice?.paymentHash || null
+    const explorerUrl = transactionHash && cryptoInfo?.network
+      ? this.explorerUrl(cryptoInfo.network.name, transactionHash)
+      : null
+
     return {
       reference_id: intent.businessReferenceId,
       payment_intent_id: intent.uniqueId,
@@ -234,9 +250,34 @@ export default class PaymentStatusController {
       expires_at: await this.resolveExpiresAt(intent.uniqueId, intent.createdAt?.toISO() ?? undefined),
       received_payment_at: intent.receivedPaymentAt ?? null,
       completed_at: intent.completedAt ?? null,
+      transaction_hash: transactionHash,
+      payment_hash: paymentHash,
+      explorer_url: explorerUrl,
       wallet: walletInfo,
       crypto: cryptoInfo,
     }
+  }
+
+  private explorerUrl(networkName: string, transactionHash: string): string | null {
+    const normalized = networkName.toLowerCase()
+    if (normalized.includes('nervos') || normalized.includes('ckb')) {
+      return normalized.includes('test')
+        ? `https://pudge.explorer.nervos.org/transaction/${transactionHash}`
+        : `https://explorer.nervos.org/transaction/${transactionHash}`
+    }
+    if (normalized.includes('bsc') || normalized.includes('binance')) {
+      return `https://${normalized.includes('test') ? 'testnet.' : ''}bscscan.com/tx/${transactionHash}`
+    }
+    if (normalized.includes('base')) {
+      return `https://${normalized.includes('test') ? 'sepolia.' : ''}basescan.org/tx/${transactionHash}`
+    }
+    if (normalized.includes('polygon')) return `https://polygonscan.com/tx/${transactionHash}`
+    if (normalized.includes('arbitrum')) return `https://arbiscan.io/tx/${transactionHash}`
+    if (normalized.includes('optimism')) return `https://optimistic.etherscan.io/tx/${transactionHash}`
+    if (normalized.includes('ethereum')) {
+      return `https://${normalized.includes('test') ? 'sepolia.' : ''}etherscan.io/tx/${transactionHash}`
+    }
+    return null
   }
 
   /**

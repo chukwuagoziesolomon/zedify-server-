@@ -52,6 +52,9 @@ Route.group(() => {
   /** GET /api/user/shop/delivery-settings — Get delivery settings for shop */
   Route.get('/delivery-settings', 'ShopDeliverySettingController.show')
 
+  /** GET /api/user/shop/ckb-metrics — CKB adoption metrics for the merchant */
+  Route.get('/ckb-metrics', 'CkbMetricsController.index')
+
   /** PUT /api/user/shop/delivery-settings — Update delivery settings */
   Route.put('/delivery-settings', 'ShopDeliverySettingController.update')
 }).prefix('/api/user/shop').middleware('auth:user')

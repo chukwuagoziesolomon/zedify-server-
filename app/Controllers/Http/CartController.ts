@@ -523,12 +523,18 @@ export default class CartController extends RolesController {
       const cryptoNetwork = await CryptoNetwork.query().where('uniqueId', cryptoCurrency.cryptoNetworkId).first()
       if (!cryptoNetwork) throw new Error('Crypto network not found')
 
+      const metadata = intent.metadata || {}
+      const expectedTestnet = metadata.integration === 'api'
+        ? metadata.environment === 'TEST'
+        : undefined
+
       const setup = await PaymentSetupService.createPaymentSetup({
         paymentIntent: intent,
         userUniqueId: intent.businessId,
         userIntId,
         cryptoCurrency,
         referenceId: intent.businessReferenceId,
+        expectedTestnet,
       })
 
       return response.ok({

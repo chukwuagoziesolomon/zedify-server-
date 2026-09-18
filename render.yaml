@@ -81,3 +81,5 @@ services:
         value: https://mainnet.ckb.dev/rpc
       - key: CLIENT_URL
         sync: false
+      - key: HOSTED_CHECKOUT_URL
+        sync: false
