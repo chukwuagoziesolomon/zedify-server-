@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid'
 
 import Wallet from 'App/Models/Wallet'
 import PaymentIntent from 'App/Models/PaymentIntent'
+import FiberService from 'App/Services/FiberService'
 import { resolvePreferredCryptoCurrency, resolvePaymentFlowStrategy } from 'App/helpers/cryptoCurrencySelection'
 
 test.group('Business Fiber Payments', (group) => {
@@ -218,6 +219,16 @@ test.group('Fiber Auto-Conversion', () => {
     }
 
     assert.isTrue(shouldSettle)
+  })
+
+  test('should map Fiber aliases to valid Fiber SDK networks', async ({ assert }) => {
+    const normalizedTestnet = (FiberService as any).normalizeFiberNetwork('fiber-testnet')
+    const normalizedMainnet = (FiberService as any).normalizeFiberNetwork('fiber-mainnet')
+    const normalizedDevnet = (FiberService as any).normalizeFiberNetwork('fiber-devnet')
+
+    assert.equal(normalizedTestnet, 'testnet')
+    assert.equal(normalizedMainnet, 'mainnet')
+    assert.equal(normalizedDevnet, 'devnet')
   })
 })
 

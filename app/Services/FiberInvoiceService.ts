@@ -7,8 +7,22 @@ import { PaymentIntentStatus } from 'App/Lib/types'
 import { DateTime } from 'luxon'
 
 class FiberInvoiceServiceClass {
+  private normalizeFiberNetwork(value?: string): 'mainnet' | 'testnet' | 'devnet' {
+    const normalized = String(value || '').trim().toLowerCase()
+    const map: Record<string, 'mainnet' | 'testnet' | 'devnet'> = {
+      'fiber-mainnet': 'mainnet',
+      'fiber-testnet': 'testnet',
+      'fiber-devnet': 'devnet',
+      mainnet: 'mainnet',
+      testnet: 'testnet',
+      devnet: 'devnet',
+    }
+
+    return map[normalized] || 'testnet'
+  }
+
   private get fiberNetwork(): 'mainnet' | 'testnet' | 'devnet' {
-    return (Env.get('FIBER_NETWORK', 'testnet') as 'mainnet' | 'testnet' | 'devnet')
+    return this.normalizeFiberNetwork(Env.get('FIBER_NETWORK', 'testnet'))
   }
 
   public async createInvoiceForIntent(paymentIntentId: string, businessId: string, amountCkb: number, description = 'Payment for order', expirySeconds = 3600): Promise<FiberInvoice> {

@@ -52,8 +52,22 @@ class FiberServiceClass {
     return token ? token : undefined
   }
 
+  private normalizeFiberNetwork(value?: string): 'mainnet' | 'testnet' | 'devnet' {
+    const normalized = String(value || '').trim().toLowerCase()
+    const map: Record<string, 'mainnet' | 'testnet' | 'devnet'> = {
+      'fiber-mainnet': 'mainnet',
+      'fiber-testnet': 'testnet',
+      'fiber-devnet': 'devnet',
+      mainnet: 'mainnet',
+      testnet: 'testnet',
+      devnet: 'devnet',
+    }
+
+    return map[normalized] || 'testnet'
+  }
+
   private get fiberNetwork(): 'mainnet' | 'testnet' | 'devnet' {
-    return (Env.get('FIBER_NETWORK', 'testnet') as 'mainnet' | 'testnet' | 'devnet')
+    return this.normalizeFiberNetwork(Env.get('FIBER_NETWORK', 'testnet'))
   }
 
   private getClient(): FiberClient {
