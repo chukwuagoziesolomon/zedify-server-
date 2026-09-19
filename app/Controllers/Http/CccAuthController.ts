@@ -17,6 +17,7 @@ type CccPayload = {
   provider?: string
   network?: 'mainnet' | 'testnet'
   subject?: string
+  email?: string
   address?: string
   lockScript?: string
   publicKey?: string
@@ -87,9 +88,7 @@ export default class CccAuthController {
         throw new Error('This CKB identity is already linked to another account')
       }
 
-      const user = existingIdentity
-        ? await User.findOrFail(existingIdentity.userId)
-        : authenticatedUser || await this.createCccUser(challenge.subject)
+      const user = await this.resolveUserForCccLogin(authenticatedUser, payload, existingIdentity, challenge)
 
       await this.saveIdentity(user, challenge, payload)
       const token = await auth.use('user').generate(user, { expiresIn: '1 hour' })
@@ -249,12 +248,51 @@ export default class CccAuthController {
     return UserIdentity.create(values)
   }
 
+  public async resolveUserForCccLogin(
+    authenticatedUser: User | null,
+    payload: CccPayload,
+    existingIdentity: UserIdentity | null,
+    challenge?: { network?: string; subject?: string }
+  ) {
+    if (existingIdentity) {
+      return User.findOrFail(existingIdentity.userId)
+    }
+
+    if (authenticatedUser) {
+      return authenticatedUser
+    }
+
+    const normalizedEmail = this.normalizeEmail(payload.email)
+    if (normalizedEmail) {
+      const userByEmail = await User.query()
+        .whereRaw('LOWER(email) = ?', [normalizedEmail])
+        .first()
+      if (userByEmail) {
+        return userByEmail
+      }
+    }
+
+    const subject = payload.subject || payload.identity || challenge?.subject
+    if (!subject) {
+      throw new Error('CCC subject is required to create a provisional account')
+    }
+
+    return this.createCccUser(subject)
+  }
+
+  private normalizeEmail(email?: string) {
+    if (!email) return null
+    const normalized = String(email).trim().toLowerCase()
+    return normalized || null
+  }
+
   private async createCccUser(subject: string) {
     const suffix = crypto.createHash('sha256').update(subject).digest('hex').slice(0, 32)
     return User.create({
       email: `ccc:${suffix}@identity.local`,
       password: crypto.randomBytes(32).toString('hex'),
-      isVerified: true,
+      isVerified: false,
+      businessType: 'starter',
     })
   }
 
