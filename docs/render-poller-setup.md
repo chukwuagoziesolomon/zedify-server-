@@ -174,7 +174,9 @@ DB_DATABASE=wt_payments
 
 # Blockchain
 CKB_TESTNET_RPC=https://testnet.ckb.dev/rpc
-FIBER_NODE_URL=<your-fiber-node>
+# Must be a reachable reverse proxy exposing Fiber JSON-RPC at POST /.
+# Do not use the raw Fiber node TLS endpoint unless it is configured for HTTPS.
+FIBER_NODE_URL=https://<fiber-rpc-proxy-host>
 FIBER_NETWORK=testnet
 FIBER_BISCUIT_TOKEN=<your-biscuit-token>
 

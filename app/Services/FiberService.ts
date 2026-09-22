@@ -44,7 +44,23 @@ class FiberServiceClass {
   private lastCacheKey: string = ''
 
   private get fiberNodeUrl(): string {
-    return Env.get('FIBER_NODE_URL', 'http://127.0.0.1:8227')
+    const configuredUrl = Env.get('FIBER_NODE_URL', 'http://127.0.0.1:8227').trim()
+    if (!configuredUrl) {
+      throw new Error('Fiber node URL is not configured. Set FIBER_NODE_URL.')
+    }
+
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(configuredUrl)
+    } catch {
+      throw new Error(`Invalid FIBER_NODE_URL: ${configuredUrl}`)
+    }
+
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      throw new Error('FIBER_NODE_URL must use http:// or https://')
+    }
+
+    return configuredUrl.replace(/\/$/, '')
   }
 
   private get fiberBiscuitToken(): string | undefined {
@@ -203,6 +219,10 @@ class FiberServiceClass {
       if (/EHOSTUNREACH|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN/.test(message)) {
         Logger.error('[Fiber] Node unreachable (%s): check FIBER_NODE_URL=%s and Render outbound networking', message, this.fiberNodeUrl)
         throw new Error(`Fiber node unreachable: cannot reach ${this.fiberNodeUrl}. Check FIBER_NODE_URL and outbound networking/Render firewall.`)
+      }
+      if (error?.code === 'EPROTO' || /SSL|TLS|EPROTO/i.test(message)) {
+        Logger.error('[Fiber] TLS handshake failed for %s: %s', this.fiberNodeUrl, message)
+        throw new Error(`Fiber TLS connection failed for ${this.fiberNodeUrl}. Set FIBER_NODE_URL to a valid HTTPS reverse proxy exposing Fiber JSON-RPC at POST /, or use an internal HTTP URL. Do not point it at the raw Fiber node TLS endpoint.`)
       }
       Logger.error('[Fiber] Failed to create invoice: %s', message)
       throw error
